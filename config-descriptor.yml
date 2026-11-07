@@ -1,6 +1,6 @@
 descriptor:
-  name: Water Line Control for 2.9+ (singlethread fork)
-  key: water-line-control-2.9-singlethread
+  name: Water Line Control for 2.9+ (Sixxoo)
+  key: water-line-control-2.9-sixxoo
   currentVersion: 2.9+
   description: Program for the automation of Grade 3 to 8 water production, with singlethread quantity control of Grade 1 to 8
   repositoryLink: https://github.com/Sixxoo/GTNH-OC-Water-Line-Control

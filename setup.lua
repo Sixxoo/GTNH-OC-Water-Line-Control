@@ -1,4 +1,4 @@
--- Installs or updates Water Line Control (singlethread fork) in /home
+-- Installs or updates Water Line Control in /home
 --   wget -f https://raw.githubusercontent.com/Sixxoo/GTNH-OC-Water-Line-Control/main/setup.lua && setup
 -- An existing config.lua is kept: its values are carried into the new config.lua, and the old file is kept as config.old.lua
 local shell = require("shell")
@@ -136,7 +136,7 @@ if version == nil then
   return
 end
 
-print("Installing Water Line Control (singlethread fork) "..version.programVersion)
+print("Installing Water Line Control "..version.programVersion)
 
 if not filesystem.exists("/bin/tar.lua") then
   shell.setWorkingDirectory("/usr/man")
