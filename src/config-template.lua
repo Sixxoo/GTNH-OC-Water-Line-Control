@@ -22,7 +22,6 @@ local t8controller = require("src.t8-controller")
 ---@field t8? T8Controller
 
 ---@class Config
----@field enableAutoUpdate boolean
 ---@field enableAutoStart? boolean
 ---@field logger Logger
 ---@field discord? table
@@ -58,7 +57,6 @@ local function amountValidator(isNullable)
 end
 
 local configTemplate = {
-  enableAutoUpdate = configManager.validators.boolean:new(),
   -- Optional, so a config.lua from before this option still loads. Missing means true
   enableAutoStart = configManager.validators.boolean:new({isNullable = true}),
 

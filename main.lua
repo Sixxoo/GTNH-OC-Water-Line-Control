@@ -40,15 +40,10 @@ local function configPath()
   return package.searchpath("config", package.path) or "config.lua"
 end
 
--- Only to know whether to update at the start. A broken config.lua is reported when the program starts
-package.loaded.config = nil
-local isConfigReadable, rawConfig = pcall(require, "config")
-local enableAutoUpdate = not (isConfigReadable and type(rawConfig) == "table" and rawConfig.enableAutoUpdate == false)
-
 local repository = "Sixxoo/GTNH-OC-Water-Line-Control"
 local archiveName = "WaterLineControl"
 
-local program = programController.program:new(enableAutoUpdate, version, repository, archiveName)
+local program = programController.program:new(version, repository, archiveName)
 local gui = simpleGui.gui:new(program)
 
 ---@type Config
@@ -380,7 +375,6 @@ local function applyLive(newConfig)
   config.logger = newConfig.logger
   config.discord = newConfig.discord
   config.enableAutoStart = newConfig.enableAutoStart
-  config.enableAutoUpdate = newConfig.enableAutoUpdate
   discord.configure(config.discord)
 
   local quantityController = config.quantityController

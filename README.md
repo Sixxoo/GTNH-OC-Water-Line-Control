@@ -13,7 +13,7 @@ What the fork adds:
 - A coloured screen: each water's stock and threshold, the units the Quantity Controller chose (`▶`), and a countdown to the next cycle.
 - The program switches the Water Purification Plant back on when it starts (`enableAutoStart`), so stopping it to edit `config.lua` no longer leaves the plant off.
 - The log on the screen shows the time, which units the Quantity Controller chose and why, and when a unit or the plant stops.
-- Auto update and the installer use this fork's releases.
+- The installer uses this fork's releases. There is no update check at start: run the installer again for a new version.
 
 > [!CAUTION]
 > For GTNH **2.9** and newer only.
@@ -42,7 +42,6 @@ Program is designed to automate the water line from T3 to T8 water, and can swit
 Program is modular, you can choose which water types you want to automate.
 The Quantity Controller can also decide which units run, from the amount of each water in your ME network.
 It can send messages to Discord when a unit needs attention, the plant stops, or the program has an error, see [Discord messages](#discord).
-And there is also the possibility of auto update at startup.
 
 #### Controls
 
@@ -129,9 +128,7 @@ Keep the clock away from the screen: a redstone pulse turns an OpenComputers scr
 
 #### Updating and removing
 
-With `enableAutoUpdate = true`, the program checks for a new version when it starts and asks before installing it.
-You can also stop it (Q) and run `update`: it shows the installed and the newest version, and asks before installing.
-Both keep your values in the new `config.lua`, as described above.
+To update, stop the program (Q) and run the installer line again. It keeps your values in the new `config.lua`, as described above.
 
 `uninstall` removes the files Water Line Control installed (listed in `/home/waterline.files`), and leaves other programs in `/home` alone.
 It asks before removing `config.lua`, removes its auto-start line, and asks whether to turn off wake on redstone.
@@ -570,12 +567,6 @@ The water line keeps running while you edit, and the Quantity Controller keeps c
 - Changes to which units are enabled, their transposers, `maxQuarkCount`, the ME interface address, or switching the Quantity Controller on or off
   need the program to start again. It asks: Y starts it again in place, without switching the plant off. N keeps the running settings until the next start.
 - If the file has a mistake, it is shown: E edits it again, any other key keeps the settings that are running.
-
-Enable auto update when starting the program.
-
-```lua
-enableAutoUpdate = true, -- Enable auto update on start
-```
 
 The program switches the Water Purification Plant off whenever it stops, for example when you stop it to edit `config.lua` or when it crashes.
 The plant still finishes the cycle it is running, but doesn't start a new one.

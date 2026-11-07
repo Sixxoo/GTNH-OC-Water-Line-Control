@@ -169,6 +169,11 @@ shell.setWorkingDirectory(home)
 shell.execute("tar -xf "..archive)
 filesystem.remove(archive)
 
+-- Files of older versions that are no longer used (the update check was removed in 2.1.5)
+for _, file in ipairs({"update.lua", "lib/program-controller/program-updater.lua"}) do
+  filesystem.remove(home.."/"..file)
+end
+
 -- A download that stopped early unpacks only part of the files
 local isInstalled, installed = pcall(dofile, home.."/version.lua")
 
