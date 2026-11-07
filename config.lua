@@ -43,8 +43,9 @@ local config = {
     },
 
     t3 = { -- Controller for T3 Flocculated Water (Grade 3)
-      enable = false, -- Enable module for T3 water
-      transposerAddress = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" -- Address of transposer which provide Polyaluminium Chloride
+      enable = true, -- Enable module for T3 water
+      transposerAddress = "5dcf2167-a9de-4f5a-8727-8287e7e4d98e", -- Address of transposer which provide Polyaluminium Chloride
+      hatchSide = "down" -- Side of the transposer with the unit's input hatch: "up", "down", "north", "south", "west" or "east"
     },
 
     t4 = { -- Controller for T4 pH Neutralized Water (Grade 4)

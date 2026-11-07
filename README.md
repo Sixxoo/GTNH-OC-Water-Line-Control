@@ -235,8 +235,9 @@ To build a setup, you will need:
 
 To use the module for t3 water in the `config.lua`
 file you need to enable the module by changing `enable = false` to `enable = true`. 
-You must also specify the address of the transposer in the `transposerAddress` field, which is located under the ZPM input hatch and to which the tank with the 
-Polyaluminium chloride connected.
+You must also specify the address of the transposer in the `transposerAddress` field, to which the ZPM input hatch and the tank with the
+Polyaluminium chloride are connected. `hatchSide` is the side of the transposer with the input hatch: `"up"` (the default, transposer under the hatch),
+`"down"` (transposer above the hatch), `"north"`, `"south"`, `"west"` or `"east"`. The tank can be on any other side.
 
 The controller is connected via MFU to keep it accessible.
 
@@ -245,7 +246,8 @@ The controller is connected via MFU to keep it accessible.
 ```Lua
 t3 = { -- Controller for T3 Flocculated Water (Grade 3)
   enable = false, -- Enable module for T3 water
-  transposerAddress = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" -- Address of transposer which provide Polyaluminium Chloride
+  transposerAddress = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", -- Address of transposer which provide Polyaluminium Chloride
+  hatchSide = "up" -- Side of the transposer with the unit's input hatch
 },
 ```
 

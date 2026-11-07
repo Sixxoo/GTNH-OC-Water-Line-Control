@@ -22,9 +22,11 @@ local t3controller = {}
 
 ---Constructor
 ---@param transposerAddress string
+---@param hatchSide? string Side of the transposer with the unit's input hatch: "up" (default), "down", "north", "south", "west" or "east"
 ---@return T3Controller
-function t3controller:constructor(transposerAddress)
+function t3controller:constructor(transposerAddress, hatchSide)
   self.transposerAddress = transposerAddress
+  self.hatchSide = sides[(hatchSide or "up"):lower()] or sides.up
 
   self.requiredCount = 900000
 
@@ -130,7 +132,7 @@ function t3controller:initStateMachine()
 
       local _, result = self.transposerProxy.transferFluid(
         self.transposerLiquids["polyaluminiumchloride"].side,
-        sides.up,
+        self.hatchSide,
         countToAdd,
         self.transposerLiquids["polyaluminiumchloride"].tank
       )
@@ -159,7 +161,7 @@ end
 ---@param fluidNames string[]
 ---@private
 function t3controller:findTransposerFluid(proxy, fluidNames)
-  local result, skipped = componentDiscover.transposerFluidStoragesByNames(proxy, fluidNames, {sides.up})
+  local result, skipped = componentDiscover.transposerFluidStoragesByNames(proxy, fluidNames, {self.hatchSide})
 
   if #skipped ~= 0 then
     error("[T3] Can't find liquid: "..table.concat(skipped, ", "))

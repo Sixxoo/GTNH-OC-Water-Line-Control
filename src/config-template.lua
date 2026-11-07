@@ -177,13 +177,15 @@ local configTemplate = {
         template = {
           enable = configManager.validators.boolean:new(),
           transposerAddress = configManager.validators.address:new(),
+          -- Optional, so a config.lua from before this option still loads
+          hatchSide = configManager.validators.enum:new({"up", "down", "north", "south", "west", "east"}, {isNullable = true}),
         },
         objectFactory = function (value)
           if value.enable == false then
             return nil
           end
 
-          return t3controller:new(value.transposerAddress)
+          return t3controller:new(value.transposerAddress, value.hatchSide)
         end
       }),
 
