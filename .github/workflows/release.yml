@@ -1,0 +1,41 @@
+name: Release
+
+# Publish a release on GitHub (with a new tag like v2.1.0), and this builds the archive
+# the installer downloads and attaches it to that release
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.release.tag_name }}
+
+    - name: Check the version
+      run: |
+        tag="${{ github.event.release.tag_name }}"
+        version=$(grep -o 'programVersion = "[^"]*"' version.lua | cut -d'"' -f2)
+        if [ "v$version" != "$tag" ]; then
+          echo "version.lua says $version, but the tag is $tag"
+          exit 1
+        fi
+
+    - name: Create tar archive
+      run: |
+        tar -cf files.tar --exclude-from=.tarignore *
+        tar -tf files.tar | grep -v '/$' > waterline.files
+        echo waterline.files >> waterline.files
+        rm files.tar
+        tar -cvf WaterLineControl.tar --exclude-from=.tarignore *
+
+    - name: Attach it to the release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: gh release upload "${{ github.event.release.tag_name }}" WaterLineControl.tar --clobber
