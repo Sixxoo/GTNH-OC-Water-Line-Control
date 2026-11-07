@@ -56,14 +56,19 @@ And there is also the possibility of auto update at startup.
 
 #### Interface
 
-![Interface](/docs/interface-singlethread.png)
+![Interface](/docs/interface-neon.png)
 
-- The header shows the time, the cycle as a bar, the time to the next cycle (or "Plant stopped" in red) and the control mode.
-- Stock is red under `floorQty`, orange under `minQty` (both only in `singleThreadBalancing`), yellow under its threshold and green at or above it.
-- On the right, a bar shows the stock from 0 to its threshold, in the stock's colour. A water without a cap shows `-` as its threshold, and its bar is scaled to the largest stock.
-- `▶` marks the units the Quantity Controller chose for the next cycle.
-- State: "Working" with the success chance, "Waiting" (switched on, waiting for the next cycle), "Idle" (switched off by the Quantity Controller or by hand), "✗ Needs attention" (stopped after a fault, see [Quantity Controller](#quantity-controller)) or "Unused" (not enabled in `config.lua`).
-- Below the line is the log, see [Configuration](#configuration).
+The screen fits its width to the screen's shape at 35 rows (made for a 5 x 3 screen, at least 80 x 25 works too).
+
+- Header: the time, the control mode, and `[ RUNNING ]` or `[ PLANT STOPPED ]`.
+- **Purification Units**: each enabled unit with its state ("Working" with the success chance, "Waiting", "Idle" or "Needs attention"), its water and the stock against its target.
+  The bar shows the stock from 0 to the target (a water without a cap is scaled to the largest stock), with marks for `floorQty` and `minQty` in `singleThreadBalancing`.
+  Stock is red under `floorQty`, orange under `minQty` (both only in `singleThreadBalancing`), yellow under its target and green at or above it.
+- `▶` marks the units the Quantity Controller chose for the next cycle, `✗` a unit that needs attention (see [Quantity Controller](#quantity-controller)).
+- **Event Log**: newest at the top, scroll with the arrow keys, see [Configuration](#configuration).
+- **Cycle**: time to the next cycle as a bar, the units running now and the units chosen for the next cycle.
+- **Control**: the amounts of the control mode and why the Quantity Controller chose the next unit.
+- **Statistics**: uptime, cycles seen and how many cycles each unit ran since the program started.
 
 <a id="installation"></a>
 

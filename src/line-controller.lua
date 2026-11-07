@@ -104,6 +104,16 @@ function lineController:logCycleStart()
   end
 
   event.push("log_debug", "[Line] Cycle started: "..(#running > 0 and table.concat(running, " ") or "no units"))
+
+  -- For the statistics on the screen
+  if self.stats ~= nil then
+    self.stats.cycles = self.stats.cycles + 1
+
+    for _, name in ipairs(running) do
+      local tier = tonumber(name:sub(2))
+      self.stats.unitCycles[tier] = (self.stats.unitCycles[tier] or 0) + 1
+    end
+  end
 end
 
 ---Get the progress of the running cycle in ticks, 0 and 0 when the plant isn't running.

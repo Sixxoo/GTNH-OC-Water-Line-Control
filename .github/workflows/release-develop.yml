@@ -17,6 +17,10 @@ jobs:
 
     - name: Create tar archive
       run: |
+        tar -cf files.tar --exclude-from=.tarignore *
+        tar -tf files.tar | grep -v '/$' > waterline.files
+        echo waterline.files >> waterline.files
+        rm files.tar
         tar -cvf release.tar --exclude-from=.tarignore *
 
     - name: Create Release

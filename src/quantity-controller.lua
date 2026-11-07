@@ -358,6 +358,7 @@ function quantityController:updateControllerEnablement()
   end
 
   self.isTierActive = isTierActive
+  self.lastReason = reason
   self:logDecision(isTierActive, reason)
 
   -- Disable every unit before enabling any, so two units never start in the same cycle

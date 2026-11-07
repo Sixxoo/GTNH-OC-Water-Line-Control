@@ -153,6 +153,29 @@ function simpleGui:render(values)
     return
   end
 
+  local lines = {}
+
+  for y, line in ipairs(self.template.lines) do
+    local renderedString = line
+    renderedString = self:renderConditions(renderedString, values)
+    renderedString = self:renderValues(renderedString, values)
+    renderedString = self:renderWidgets(renderedString, values, y)
+    renderedString = self:renderLineContentJustify(renderedString)
+
+    lines[y] = renderedString
+  end
+
+  self:show(lines)
+end
+
+---Show lines that already have their colour codes, one per row of the template.
+---Only the lines that changed since the last frame are drawn and sent to the screen
+---@param lines string[]
+function simpleGui:show(lines)
+  if not self.allowRender then
+    return
+  end
+
   if self:ensureScreen() then
     self.shownLines = nil
   end
@@ -164,19 +187,10 @@ function simpleGui:render(values)
     self.shownLines = nil
   end
 
-  local lines = {}
   local changed = {}
 
-  for y, line in ipairs(self.template.lines) do
-    local renderedString = line
-    renderedString = self:renderConditions(renderedString, values)
-    renderedString = self:renderValues(renderedString, values)
-    renderedString = self:renderWidgets(renderedString, values, y)
-    renderedString = self:renderLineContentJustify(renderedString)
-
-    lines[y] = renderedString
-
-    if self.shownLines == nil or self.shownLines[y] ~= renderedString then
+  for y = 1, self.height do
+    if self.shownLines == nil or self.shownLines[y] ~= lines[y] then
       table.insert(changed, y)
     end
   end
