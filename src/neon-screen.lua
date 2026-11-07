@@ -351,24 +351,14 @@ local function unitRows(count, maxHeight)
   return 1
 end
 
----Bar of a water like the Drilling Fluid bar: heavy line up to the stock, light line for the rest,
----marks for floor and min in balancing
+---Bar of a water like the Drilling Fluid bar: heavy line up to the stock, light line for the rest.
+---The full bar is the water's limit (its threshold in config.lua); a water without a cap uses the
+---highest limit of the other waters. Returns the stock as a fraction of the limit, above 1 when over it
 local function stockBar(cv, ctx, unit, x, y, w, color, bg)
-  local scale = unit.target > 0 and unit.target or ctx.largestStock
-  local fraction = scale > 0 and math.min(1, unit.level / scale) or 0
+  local limit = unit.target > 0 and unit.target or ctx.highestLimit or 0
+  local fraction = limit > 0 and unit.level / limit or 0
 
-  thinBar(cv, x, y, w, fraction, color, bg)
-
-  if ctx.mode == "singleThreadBalancing" and scale > 0 then
-    for _, amountMark in ipairs({ctx.floorQty, ctx.minQty}) do
-      if amountMark > 0 and amountMark < scale then
-        local offset = math.floor(amountMark / scale * w + 0.5)
-        local isFilled = fraction * w >= offset + 1
-
-        cv:put(x + math.min(offset, w - 1), y, CH.mark, isFilled and color or C.line, bg)
-      end
-    end
-  end
+  thinBar(cv, x, y, w, math.min(1, fraction), color, bg)
 
   return fraction
 end
@@ -448,14 +438,15 @@ local function drawUnits(cv, ctx, x, y, w, h)
 
     -- Bar row: the stock as a bar, and its percent of the target
     if rows >= 2 then
-      local barWidth = inner - 4 - 7
+      local barWidth = inner - 4 - 8
       local fraction = stockBar(cv, ctx, unit, x + 3, barRow, barWidth, stockColorValue, bg)
 
       if rows == 2 then
         -- No row for the water: the amount goes after the bar
         cv:put(x + w - 2 - 7, barRow, fit(formatAmount(unit.level), 6), stockColorValue, bg)
       else
-        cv:put(x + w - 7, barRow, string.format("%5s", math.floor(fraction * 100 + 0.5).."%"), stockColorValue, bg)
+        -- Rounded down, so 100% means the limit is reached
+        cv:put(x + w - 7, barRow, string.format("%5s", math.floor(fraction * 100).."%"), stockColorValue, bg)
       end
     end
 

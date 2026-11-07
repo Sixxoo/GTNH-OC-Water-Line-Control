@@ -62,7 +62,7 @@ The screen fits its width to the screen's shape at 35 rows (made for a 5 x 3 scr
 
 - Header: the time, the control mode, and `[ RUNNING ]` or `[ PLANT STOPPED ]`.
 - **Purification Units**: each enabled unit with its state ("Working" with the success chance, "Waiting", "Idle" or "Needs attention"), its water and the stock against its target.
-  The bar shows the stock from 0 to the target (a water without a cap is scaled to the largest stock), with marks for `floorQty` and `minQty` in `singleThreadBalancing`.
+  The full bar is the water's limit (its threshold in `waterThresholds`, a water without a cap uses the highest limit of the others); the percent is the stock against that limit and goes above 100% when the stock is over it.
   Stock is red under `floorQty`, orange under `minQty` (both only in `singleThreadBalancing`), yellow under its target and green at or above it.
 - `▶` marks the units the Quantity Controller chose for the next cycle, `✗` a unit that needs attention (see [Quantity Controller](#quantity-controller)).
 - **Event Log**: newest at the top, scroll with the arrow keys, see [Configuration](#configuration).

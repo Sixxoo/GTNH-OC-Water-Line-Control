@@ -239,18 +239,18 @@ local function loop()
   end
 end
 
----Largest stock of the waters whose unit is used, the scale of bars without a cap
+---Highest limit (threshold) of the waters whose unit is used: the full bar of a water without a cap
 ---@return number
-local function largestStock()
-  local largest = 0
+local function highestLimit()
+  local highest = 0
 
   for index = 1, 9 do
     if config.controllers["t"..math.min(index, 8)] ~= nil then
-      largest = math.max(largest, config.quantityController.waterLevels[index] or 0)
+      highest = math.max(highest, config.quantityController.waterThresholds[index] or 0)
     end
   end
 
-  return largest
+  return highest
 end
 
 ---What the screen shows about each unit that is enabled in config.lua
@@ -300,7 +300,7 @@ local function guiLoop()
     maxProgress = maxProgress,
     floorQty = quantityController.floorQty,
     minQty = quantityController.minQty,
-    largestStock = largestStock(),
+    highestLimit = highestLimit(),
     units = unitViews(),
     decision = quantityController.lastDecision,
     reason = quantityController.lastReason,
