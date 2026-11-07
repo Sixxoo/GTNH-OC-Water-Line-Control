@@ -5,8 +5,8 @@ local filesystem = require("filesystem")
 local internet = require("internet")
 local shell = require("shell")
 
-local repository = "Willshaper/GTNH-OC-Water-Line-Control"
-local branch = "develop"
+local repository = "Sixxoo/GTNH-OC-Water-Line-Control"
+local branch = "main"
 local setupTemp = "/tmp/waterline-setup.lua"
 
 ---@param question string

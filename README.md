@@ -1,6 +1,7 @@
-# GTNH-OC-Water-Line-Control (singlethread fork)
+# GTNH-OC-Water-Line-Control
 
-This is a fork of the `develop` branch of [Navatusein/GTNH-OC-Water-Line-Control](https://github.com/Navatusein/GTNH-OC-Water-Line-Control/tree/develop).
+This is a fork of [Willshaper/GTNH-OC-Water-Line-Control](https://github.com/Willshaper/GTNH-OC-Water-Line-Control) (singlethread fork),
+which is based on the `develop` branch of [Navatusein/GTNH-OC-Water-Line-Control](https://github.com/Navatusein/GTNH-OC-Water-Line-Control/tree/develop).
 It adds the **Quantity Controller** from [ehami/gtnh-oc-water-line-control](https://github.com/ehami/gtnh-oc-water-line-control),
 which can run the water line single threaded: one Purification Unit per cycle, chosen by how much of each water is in your ME network.
 
@@ -92,7 +93,7 @@ A Tier 3 CPU allows 16, and only a server can hold the Component Bus that adds 1
 3. Run this command to install the fork. It downloads the latest release into `/home`.
 
 ```shell
-wget -f https://raw.githubusercontent.com/Willshaper/GTNH-OC-Water-Line-Control/develop/setup.lua && setup
+wget -f https://raw.githubusercontent.com/Sixxoo/GTNH-OC-Water-Line-Control/main/setup.lua && setup
 ```
 
 If there is a `config.lua` already, your values are carried into the new one, with its new settings and comments, and the installer lists what changed.
@@ -141,7 +142,7 @@ Press Q to stop the program at any time. This switches the plant off too.
 
 > [!NOTE]  
 > For convenient configuration you can use the web configurator.
-> [GTNH-OC-Web-Configurator](https://navatusein.github.io/GTNH-OC-Web-Configurator/#/configurator?url=https%3A%2F%2Fraw.githubusercontent.com%2FWillshaper%2FGTNH-OC-Water-Line-Control%2Frefs%2Fheads%2Fdevelop%2Fconfig-descriptor.yml)
+> [GTNH-OC-Web-Configurator](https://navatusein.github.io/GTNH-OC-Web-Configurator/#/configurator?url=https%3A%2F%2Fraw.githubusercontent.com%2FSixxoo%2FGTNH-OC-Water-Line-Control%2Frefs%2Fheads%2Fmain%2Fconfig-descriptor.yml)
 
 #### Computer setup
 
@@ -547,7 +548,7 @@ quantityController = { -- Decides which units run, from the amount of each water
 
 > [!NOTE]  
 > For convenient configuration you can use the web configurator.
-> [GTNH-OC-Web-Configurator](https://navatusein.github.io/GTNH-OC-Web-Configurator/#/configurator?url=https%3A%2F%2Fraw.githubusercontent.com%2FWillshaper%2FGTNH-OC-Water-Line-Control%2Frefs%2Fheads%2Fdevelop%2Fconfig-descriptor.yml)
+> [GTNH-OC-Web-Configurator](https://navatusein.github.io/GTNH-OC-Web-Configurator/#/configurator?url=https%3A%2F%2Fraw.githubusercontent.com%2FSixxoo%2FGTNH-OC-Water-Line-Control%2Frefs%2Fheads%2Fmain%2Fconfig-descriptor.yml)
 
 General configuration in file `config.lua`
 The configuration of water line modules is described in paragraph [Water Line Setup](#water-line-setup),
@@ -661,4 +662,5 @@ The old `["discord"]` handler in `logger.handlers` is no longer used. A `config.
 ## Credits
 
 - [Navatusein](https://github.com/Navatusein) wrote Water Line Control.
+- [Willshaper](https://github.com/Willshaper) made the singlethread fork this one is based on.
 - [ehami](https://github.com/ehami) wrote the Quantity Controller, the T1 and T2 modules and the Needs attention state (called "Admin disabled" there), ported here to the 2.9 version.

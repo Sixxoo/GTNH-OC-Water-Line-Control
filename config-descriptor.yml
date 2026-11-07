@@ -3,10 +3,10 @@ descriptor:
   key: water-line-control-2.9-singlethread
   currentVersion: 2.9+
   description: Program for the automation of Grade 3 to 8 water production, with singlethread quantity control of Grade 1 to 8
-  repositoryLink: https://github.com/Willshaper/GTNH-OC-Water-Line-Control
+  repositoryLink: https://github.com/Sixxoo/GTNH-OC-Water-Line-Control
   versions:
     - name: 2.9+
-      url: "https://raw.githubusercontent.com/Willshaper/GTNH-OC-Water-Line-Control/refs/heads/develop/config-descriptor.yml"
+      url: "https://raw.githubusercontent.com/Sixxoo/GTNH-OC-Water-Line-Control/refs/heads/main/config-descriptor.yml"
   fieldGroups:
     - key: general
       name: General

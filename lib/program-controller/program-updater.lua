@@ -278,7 +278,7 @@ function programUpdater:downloadAndInstall(url, expectedVersion)
 
   if expectedVersion ~= nil and (not isInstalled or type(installed) ~= "table" or installed.programVersion ~= expectedVersion) then
     table.insert(warnings, "The download was incomplete, so some files are missing or cut off.")
-    table.insert(warnings, "Run setup again: wget -f https://raw.githubusercontent.com/"..self.program.repository.."/develop/setup.lua && setup")
+    table.insert(warnings, "Run setup again: wget -f https://raw.githubusercontent.com/"..self.program.repository.."/main/setup.lua && setup")
   end
 
   if oldText == nil then

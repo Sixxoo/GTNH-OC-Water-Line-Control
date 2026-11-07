@@ -4,7 +4,7 @@ local config = {
 
   logger = {
     name = "Water Line Control",
-    timeZone = 3, -- Your time zone
+    timeZone = 1, -- Your time zone (UTC offset)
     handlers = {
       ["file"] = {
         type = "file",
@@ -35,11 +35,11 @@ local config = {
 
   controllers = {
     t1 = { -- Controller for T1 Filtered Water (Grade 1)
-      enable = false -- Enable module for T1 water
+      enable = true -- Enable module for T1 water
     },
 
     t2 = { -- Controller for T2 Ozonated Water (Grade 2)
-      enable = false -- Enable module for T2 water
+      enable = true -- Enable module for T2 water
     },
 
     t3 = { -- Controller for T3 Flocculated Water (Grade 3)
@@ -81,8 +81,8 @@ local config = {
   },
 
   quantityController = { -- Decides which units run, from the amount of each water in the ME network
-    controlMode = "disabled", -- "disabled", "multiThread", "singleThread" or "singleThreadBalancing"
-    meInterfaceAddress = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", -- Address of me interface on the network which stores the water
+    controlMode = "singleThreadBalancing", -- "disabled", "multiThread", "singleThread" or "singleThreadBalancing"
+    meInterfaceAddress = "261af9d4-a03b-4b15-b1f0-ddbcda629cf7", -- Address of me interface on the network which stores the water
 
     -- singleThreadBalancing picks one unit each cycle, in this order:
     -- 1. A water under floorQty: the lowest tier runs

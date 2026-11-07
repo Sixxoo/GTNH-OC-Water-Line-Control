@@ -1,13 +1,13 @@
 -- Installs or updates Water Line Control (singlethread fork) in /home
---   wget -f https://raw.githubusercontent.com/Willshaper/GTNH-OC-Water-Line-Control/develop/setup.lua && setup
+--   wget -f https://raw.githubusercontent.com/Sixxoo/GTNH-OC-Water-Line-Control/main/setup.lua && setup
 -- An existing config.lua is kept: its values are carried into the new config.lua, and the old file is kept as config.old.lua
 local shell = require("shell")
 local filesystem = require("filesystem")
 local component = require("component")
 local internet = require("internet")
 
-local repository = "Willshaper/GTNH-OC-Water-Line-Control"
-local branch = "develop"
+local repository = "Sixxoo/GTNH-OC-Water-Line-Control"
+local branch = "main"
 local archiveName = "WaterLineControl"
 local home = "/home"
 -- Not in /tmp: OpenOS keeps /tmp in memory, 64 KB by default, which is too small for the release

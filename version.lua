@@ -1,6 +1,6 @@
 local versions = {
-  branch = "develop",
-  programVersion = "2.0.0-dev.1-st.19",
+  branch = "main",
+  programVersion = "2.1.0",
   configVersion = 3,
   setupVersion = 1,
   gtnhVersion = "2.9"

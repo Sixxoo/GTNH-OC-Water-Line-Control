@@ -23,7 +23,7 @@ local CLOCK_FILE = "/tmp/.waterline_clock"
 local RED, GREEN, GRAY = 0xE74C3C, 0x2ECC71, 0x95A5A6
 local HEADERS = {
   ["Content-Type"] = "application/json",
-  ["User-Agent"] = "DiscordBot (https://github.com/Willshaper/GTNH-OC-Water-Line-Control, 1)",
+  ["User-Agent"] = "DiscordBot (https://github.com/Sixxoo/GTNH-OC-Water-Line-Control, 1)",
 }
 
 -- From config.lua, via discord.configure()

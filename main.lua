@@ -45,7 +45,7 @@ package.loaded.config = nil
 local isConfigReadable, rawConfig = pcall(require, "config")
 local enableAutoUpdate = not (isConfigReadable and type(rawConfig) == "table" and rawConfig.enableAutoUpdate == false)
 
-local repository = "Willshaper/GTNH-OC-Water-Line-Control"
+local repository = "Sixxoo/GTNH-OC-Water-Line-Control"
 local archiveName = "WaterLineControl"
 
 local program = programController.program:new(enableAutoUpdate, version, repository, archiveName)
