@@ -390,6 +390,11 @@ local function drawUnits(cv, ctx, x, y, w, maxHeight)
     end
 
     local state, color, chance = stateText(unit.state)
+
+    -- Baryonic Matter has no unit of its own: T8 makes it
+    if unit.tier == 9 then
+      state, color, chance = "MADE BY T8", C.na, nil
+    end
     local stateWidth = textLength(state) + (chance ~= nil and 6 or 0)
     local nameWidth = inner - 4 - stateWidth - 2
     local color2 = stockColor(unit, ctx)
