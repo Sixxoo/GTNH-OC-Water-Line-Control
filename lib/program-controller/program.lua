@@ -6,6 +6,7 @@ local keyboard = require("keyboard")
 local term = require("term")
 
 local classBuilder = require("lib.class-builder.index")
+local programUpdater = require("lib.program-controller.program-updater")
 
 ---Get the first line of an error
 ---@param message any
@@ -83,6 +84,7 @@ local function errorLines(message, width)
 end
 
 ---@class Program
+---@field enableAutoUpdate? boolean
 ---@field version? ProgramVersion
 ---@field repository? string
 ---@field archiveName? string
@@ -116,14 +118,17 @@ end
 ---@field onRecovered? fun()
 ---@field onGiveUp? fun(problem: any)
 ---@field onEdit? fun(isRunning: boolean): string|nil
+---@field updater ProgramUpdater
 local program = {}
 
 ---Constructor
+---@param enableAutoUpdate? boolean
 ---@param version? ProgramVersion
 ---@param repository? string
 ---@param archiveName? string
 ---@return Program
-function program:constructor(version, repository, archiveName)
+function program:constructor(enableAutoUpdate, version, repository, archiveName)
+  self.enableAutoUpdate = enableAutoUpdate
   self.version = version
   self.repository = repository
   self.archiveName = archiveName
@@ -168,6 +173,7 @@ function program:constructor(version, repository, archiveName)
   self.onGiveUp = nil
   self.onEdit = nil
 
+  self.updater = programUpdater:new(self)
 
   return self
 end
@@ -286,6 +292,11 @@ function program:start()
 
   if self.logo then
     self:displayLogo()
+  end
+
+  if self.enableAutoUpdate then
+    self.updater:autoUpdate()
+    self:registerTimer(self.updater:checkUpdateTimer())
   end
 
   self:registerKeyHandler(keyboard.keys.q, function()

@@ -1,4 +1,5 @@
 local config = {
+  enableAutoUpdate = true, -- Enable auto update on start
   enableAutoStart = true, -- Switch the Water Purification Plant on when the program starts. Stopping the program switches it off
 
   logger = {
