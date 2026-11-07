@@ -339,10 +339,11 @@ local function drawHeader(cv, ctx)
   end
 end
 
----Rows each unit takes in the units card, so the card fits in the height it may use
+---Rows each unit takes in the units card, so they fit in the height of the card:
+---4 = name, water, bar and a divider; 3 = name, water and bar; 2 = name and bar; 1 = name
 local function unitRows(count, maxHeight)
   for _, rows in ipairs({4, 3, 2}) do
-    if count * rows + 1 <= maxHeight then
+    if count * rows + (rows == 4 and 1 or 2) <= maxHeight then
       return rows
     end
   end
@@ -350,33 +351,47 @@ local function unitRows(count, maxHeight)
   return 1
 end
 
-local function drawUnits(cv, ctx, x, y, w, maxHeight)
-  local units = ctx.units
-  local rows = unitRows(#units, maxHeight)
-  local height = #units * rows + 1
-  local inner = w - 2
+---Bar of a water like the Drilling Fluid bar: heavy line up to the stock, light line for the rest,
+---marks for floor and min in balancing
+local function stockBar(cv, ctx, unit, x, y, w, color, bg)
+  local scale = unit.target > 0 and unit.target or ctx.largestStock
+  local fraction = scale > 0 and math.min(1, unit.level / scale) or 0
 
-  if #units == 0 then
-    height = 3
+  thinBar(cv, x, y, w, fraction, color, bg)
+
+  if ctx.mode == "singleThreadBalancing" and scale > 0 then
+    for _, amountMark in ipairs({ctx.floorQty, ctx.minQty}) do
+      if amountMark > 0 and amountMark < scale then
+        local offset = math.floor(amountMark / scale * w + 0.5)
+        local isFilled = fraction * w >= offset + 1
+
+        cv:put(x + math.min(offset, w - 1), y, CH.mark, isFilled and color or C.line, bg)
+      end
+    end
   end
 
-  cardFrame(cv, x, y, w, height, "PURIFICATION UNITS")
+  return fraction
+end
+
+local function drawUnits(cv, ctx, x, y, w, h)
+  local units = ctx.units
+  local inner = w - 2
+
+  cardFrame(cv, x, y, w, h, "PURIFICATION UNITS")
   local header = " STOCK / TARGET "
   cv:put(x + w - 2 - textLength(header), y, header, C.text, C.card)
 
   if #units == 0 then
     cv:put(x + 2, y + 1, "No units enabled in config.lua", C.amber, C.card)
-    return height
+    return
   end
+
+  local rows = unitRows(#units, h)
 
   for i, unit in ipairs(units) do
     local top = y + 1 + (i - 1) * rows
     local bg = i % 2 == 0 and C.alt or C.face
-    local faceRows = math.max(1, rows - 1)
-
-    if rows == 1 then
-      faceRows = 1
-    end
+    local faceRows = rows == 4 and 3 or rows
 
     cv:fill(x + 1, top, inner, faceRows, bg)
 
@@ -395,71 +410,59 @@ local function drawUnits(cv, ctx, x, y, w, maxHeight)
     if unit.tier == 9 then
       state, color, chance = "MADE BY T8", C.na, nil
     end
+
+    local stockColorValue = stockColor(unit, ctx)
+    local amount = formatAmount(unit.level)
+
+    if ctx.mode ~= "disabled" then
+      amount = amount.." / "..(unit.target > 0 and formatAmount(unit.target) or "no cap")
+    end
+
+    -- Row 1: mark, tier, unit name and state with the success chance
     local stateWidth = textLength(state) + (chance ~= nil and 6 or 0)
-    local nameWidth = inner - 4 - stateWidth - 2
-    local color2 = stockColor(unit, ctx)
-    local amount = formatAmount(unit.level)..(ctx.mode ~= "disabled" and (" / "..(unit.target > 0 and formatAmount(unit.target) or "no cap")) or "")
+    local nameWidth = inner - 4 - textLength(unit.label) - stateWidth - 2
 
     cv:put(x + 1, top, mark, markColor, bg)
-    cv:put(x + 3, top, unit.label, unit.used and C.neon or C.na, bg)
-    cv:put(x + 4 + textLength(unit.label), top, fit(unit.name, nameWidth - textLength(unit.label)), unit.used and C.text or C.na, bg)
+    cv:put(x + 3, top, unit.label, C.neon, bg)
+    cv:put(x + 4 + textLength(unit.label), top, fit(unit.name, nameWidth), C.text, bg)
+    cv:put(x + w - 2 - stateWidth, top, state, color, bg)
 
     if chance ~= nil then
-      cv:put(x + w - 2 - stateWidth, top, state, color, bg)
-      local chanceText = string.format("%5s", math.floor(chance).."%")
-      cv:put(x + w - 7, top, chanceText, chanceColor(chance), bg)
-    else
-      cv:put(x + w - 2 - stateWidth, top, state, color, bg)
+      cv:put(x + w - 7, top, string.format("%5s", math.floor(chance).."%"), chanceColor(chance), bg)
     end
 
+    -- Row 2: the water (or why the unit needs attention) and its stock
+    local water, waterColor = unit.water, C.sub
+
+    if unit.needsAttention and unit.attentionReason ~= "" then
+      water, waterColor = unit.attentionReason, C.red
+    end
+
+    local barRow = top + 1
+
+    if rows >= 3 then
+      cv:put(x + 3, top + 1, fit(water, inner - textLength(amount) - 5), waterColor, bg)
+      cv:put(x + w - 2 - textLength(amount), top + 1, amount, stockColorValue, bg)
+      barRow = top + 2
+    end
+
+    -- Bar row: the stock as a bar, and its percent of the target
     if rows >= 2 then
-      -- Water and its stock
-      local water = unit.needsAttention and unit.attentionReason ~= "" and unit.attentionReason or unit.water
-      local waterColor = unit.needsAttention and unit.attentionReason ~= "" and C.red or C.sub
-      local amountWidth = textLength(amount)
+      local barWidth = inner - 4 - 7
+      local fraction = stockBar(cv, ctx, unit, x + 3, barRow, barWidth, stockColorValue, bg)
 
       if rows == 2 then
-        -- The second row is the divider; the water goes into it
-        if i < #units then
-          cv:put(x, top + 1, CH.lt..string.rep(CH.h, inner)..CH.rt, C.neon, C.card)
-        end
-
-        cv:put(x + 3, top + 1, " "..fit(water, inner - amountWidth - 8).." ", waterColor, C.card)
-        cv:put(x + w - 3 - amountWidth, top + 1, " "..amount.." ", color2, C.card)
+        -- No row for the water: the amount goes after the bar
+        cv:put(x + w - 2 - 7, barRow, fit(formatAmount(unit.level), 6), stockColorValue, bg)
       else
-        cv:put(x + 3, top + 1, fit(water, inner - amountWidth - 5), waterColor, bg)
-        cv:put(x + w - 2 - amountWidth, top + 1, amount, color2, bg)
+        cv:put(x + w - 7, barRow, string.format("%5s", math.floor(fraction * 100 + 0.5).."%"), stockColorValue, bg)
       end
     end
 
-    if rows >= 4 then
-      -- Stock against the target (or the largest stock without a cap), with marks for floor and min
-      local barX, barWidth = x + 3, inner - 9
-      local scale = unit.target > 0 and unit.target or ctx.largestStock
-      local fraction = scale > 0 and math.min(1, unit.level / scale) or 0
-
-      thinBar(cv, barX, top + 2, barWidth, fraction, color2, bg)
-
-      if ctx.mode == "singleThreadBalancing" and scale > 0 then
-        for _, amountMark in ipairs({ctx.floorQty, ctx.minQty}) do
-          if amountMark > 0 and amountMark < scale then
-            local markX = barX + math.floor(amountMark / scale * barWidth + 0.5)
-            local filled = fraction * barWidth >= markX - barX + 1
-
-            cv:put(markX, top + 2, CH.mark, filled and color2 or C.line, bg)
-          end
-        end
-      end
-
-      cv:put(x + w - 7, top + 2, string.format("%5s", math.floor(fraction * 100 + 0.5).."%"), color2, bg)
-    end
-
-    if rows >= 3 and i < #units then
-      cv:put(x, top + rows - 1, CH.lt..string.rep(CH.h, inner)..CH.rt, C.neon, C.card)
+    if rows == 4 and i < #units then
+      cv:put(x, top + 3, CH.lt..string.rep(CH.h, inner)..CH.rt, C.neon, C.card)
     end
   end
-
-  return height
 end
 
 local function drawLog(cv, ctx, x, y, w, h)
@@ -554,35 +557,64 @@ local function drawControl(cv, ctx, x, y, w)
   return height
 end
 
+---Height of the statistics card: a summary row, and the cycles of each unit in a grid
+local function statsHeight(ctx, w)
+  local count = 0
+
+  for _, unit in ipairs(ctx.units) do
+    if unit.tier <= 8 then
+      count = count + 1
+    end
+  end
+
+  local columns = math.max(1, math.floor((w - 4) / 12))
+
+  return 3 + math.ceil(count / columns)
+end
+
 local function drawStats(cv, ctx, x, y, w, h)
   local inner = w - 4
   local stats = ctx.stats
 
-  cardFrame(cv, x, y, w, h, "STATISTICS")
+  cardFrame(cv, x, y, w, h, "STATISTICS", "uptime "..duration(stats.uptime), C.dim)
 
-  local lines = {
-    {"Uptime", duration(stats.uptime), C.text},
-    {"Cycles seen", tostring(stats.cycles), C.text},
-  }
+  -- Summary row
+  local parts = {{"Cycles", tostring(stats.cycles)}}
 
   if stats.uptime >= 600 and stats.cycles > 0 then
-    lines[#lines + 1] = {"Cycles per hour", string.format("%.1f", stats.cycles / stats.uptime * 3600), C.text}
+    parts[#parts + 1] = {"per hour", string.format("%.1f", stats.cycles / stats.uptime * 3600)}
   end
+
+  local column = x + 2
+
+  for _, part in ipairs(parts) do
+    cv:put(column, y + 1, part[1], C.dim, C.card)
+    cv:put(column + textLength(part[1]) + 1, y + 1, part[2], C.text, C.card)
+    column = column + textLength(part[1]) + textLength(part[2]) + 4
+  end
+
+  -- Cycles of each unit, in columns like the miners of the Meteor program
+  local columns = math.max(1, math.floor(inner / 12))
+  local columnWidth = math.floor(inner / columns)
+  local index = 0
 
   for _, unit in ipairs(ctx.units) do
     if unit.tier <= 8 then
+      local rowY = y + 2 + math.floor(index / columns)
+      local columnX = x + 2 + (index % columns) * columnWidth
       local count = stats.unitCycles[unit.tier] or 0
-      local share = stats.cycles > 0 and string.format("  %3d%%", math.floor(count / stats.cycles * 100 + 0.5)) or ""
-      lines[#lines + 1] = {unit.label.." "..(unit.short or unit.name).." cycles", count..share, C.neon}
-    end
-  end
 
-  for i, line in ipairs(lines) do
-    if i > h - 2 then
-      break
-    end
+      if rowY <= y + h - 2 then
+        cv:put(columnX, rowY, unit.label, C.text, C.card)
+        cv:put(columnX + 3, rowY, tostring(count), C.neon, C.card)
 
-    row(cv, x + 2, y + i, inner, line[1], line[2], line[3], C.card)
+        if stats.cycles > 0 then
+          cv:put(columnX + 4 + #tostring(count), rowY, math.floor(count / stats.cycles * 100 + 0.5).."%", C.na, C.card)
+        end
+      end
+
+      index = index + 1
+    end
   end
 end
 
@@ -633,19 +665,22 @@ function neonScreen.render(width, height, ctx)
 
   drawHeader(cv, ctx)
 
-  -- Left: units, then the log down to the bottom
-  local unitsHeight = drawUnits(cv, ctx, 1, 3, LW, math.max(4, bottom - 3 - 6))
-  local logY = 3 + unitsHeight
-  local logOffset = drawLog(cv, ctx, 1, logY, LW, bottom - logY + 1)
+  -- Left: the units, down to the bottom
+  drawUnits(cv, ctx, 1, 3, LW, bottom - 2)
 
-  -- Right: cycle, control, statistics down to the bottom
+  -- Right: cycle, control, statistics, then the log down to the bottom
   local y = 3
   y = y + drawCycle(cv, ctx, RX, y, RW)
   y = y + drawControl(cv, ctx, RX, y, RW)
 
-  if bottom - y + 1 >= 3 then
-    drawStats(cv, ctx, RX, y, RW, bottom - y + 1)
+  local height = statsHeight(ctx, RW)
+
+  if bottom - y + 1 - height >= 4 then
+    drawStats(cv, ctx, RX, y, RW, height)
+    y = y + height
   end
+
+  local logOffset = drawLog(cv, ctx, RX, y, RW, bottom - y + 1)
 
   drawFooter(cv, ctx)
 
