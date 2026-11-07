@@ -291,8 +291,11 @@ local function chanceColor(chance)
   return chance >= 90 and C.green or chance >= 50 and C.yellow or C.orange
 end
 
----Colour of a stock: red under the floor, orange under min (both only in balancing),
----yellow under the target, otherwise green
+---How far under its limit a water still counts as full (green)
+neonScreen.fullMargin = 2000000
+
+---Colour of a stock (bar, slider-free part and amount): red under floor, orange under min
+---(both only in balancing), yellow under the limit minus fullMargin, green from there up and over the limit
 local function stockColor(unit, ctx)
   if ctx.mode == "singleThreadBalancing" then
     if ctx.floorQty > 0 and unit.level < ctx.floorQty then
@@ -302,7 +305,7 @@ local function stockColor(unit, ctx)
     end
   end
 
-  if unit.target > 0 and unit.level < unit.target then
+  if unit.target > 0 and unit.level < unit.target - neonScreen.fullMargin then
     return C.yellow
   end
 
