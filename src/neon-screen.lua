@@ -360,6 +360,10 @@ local function stockBar(cv, ctx, unit, x, y, w, color, bg)
 
   thinBar(cv, x, y, w, math.min(1, fraction), color, bg)
 
+  -- Red slider at the stock, like the Drilling Fluid bar of the Meteor program
+  local slider = math.min(w - 1, math.floor(math.max(0, math.min(1, fraction)) * w))
+  cv:put(x + slider, y, CH.mark, C.red, bg)
+
   return fraction
 end
 
