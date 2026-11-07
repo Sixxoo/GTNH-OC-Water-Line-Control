@@ -60,3 +60,5 @@ luac.out
 # Ignore all local history of files
 .history
 .ionide
+# Every released archive is kept
+!releases/*.tar
