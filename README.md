@@ -14,7 +14,24 @@ What the fork adds:
 - The program switches the Water Purification Plant back on when it starts (`enableAutoStart`), so stopping it to edit `config.lua` no longer leaves the plant off.
 - The log on the screen shows the time, which units the Quantity Controller chose and why, and when a unit or the plant stops.
 - Auto update and the installer use this fork's releases.
-- Built on [GTNH-OC-Addons](https://github.com/Sixxoo/GTNH-OC-Addons): the screen, config, log, installer and recovery are shared addons, bundled into each release.
+
+## Addons
+
+Water Line Control is built on [**GTNH-OC-Addons**](https://github.com/Sixxoo/GTNH-OC-Addons), shared parts used by all my OpenComputers programs.
+The addons it needs are bundled into each release (`addons/` in the install folder), nothing extra to download.
+They are listed in [`addons.lua`](addons.lua).
+
+| Addon | Version | What it does here |
+|---|---|---|
+| [`core`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/core) | 1.1 | Loads the addons and their settings (always included) |
+| [`config`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/config) | 1.0 | Checks `config.lua` and lists every mistake, edit with E, keeps your values on update |
+| [`clock`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/clock) | 1.1 | Real time with your time zone for the screen and the log |
+| [`event-log`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/event-log) | 1.0 | The log on the screen (coloured, repeats folded) and `logs.log` |
+| [`screen`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/screen) | 1.0 | Draws the screen without flicker and fits the resolution to the monitor |
+| [`neon-ui`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/neon-ui) | 1.0 | The neon look: cards, bars, header and footer |
+| [`recovery`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/recovery) | 1.2 | Restarts after an error with a countdown, switches the plant off after 5 minutes of errors |
+| [`installer`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/installer) | 1.0 | Install, update, `update-all` and `uninstall` |
+| [`autostart`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/autostart) | 1.0 | Starts the program when the computer boots, wake on redstone |
 
 > [!CAUTION]
 > For GTNH **2.9** and newer only.
@@ -28,6 +45,7 @@ What the fork adds:
 
 ## Content
 
+- [Addons](#addons)
 - [Information](#information)
 - [Installation](#installation)
 - [Water Line Setup](#water-line-setup)
