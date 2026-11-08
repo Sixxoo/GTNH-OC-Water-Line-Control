@@ -86,10 +86,9 @@ The screen fits its width to the screen's shape at 35 rows (made for a 5 x 3 scr
   The full bar is the water's limit (its threshold in `waterThresholds`, a water without a cap uses the highest limit of the others); the percent is the stock against that limit and goes above 100% when the stock is over it.
   Stock is red under `floorQty`, orange under `minQty` (both only in `singleThreadBalancing`), yellow under its limit minus 2M, and green from 2M under its limit up and over it. A red slider marks the stock on the bar.
 - `▶` marks the units the Quantity Controller chose for the next cycle, `✗` a unit that needs attention (see [Quantity Controller](#quantity-controller)).
-- **Event Log**: newest at the top, scroll with the arrow keys, see [Configuration](#configuration).
+- **Event Log** (bottom right): newest at the top, scroll with the arrow keys, see [Configuration](#configuration).
 - **Cycle**: time to the next cycle as a bar, the units running now and the units chosen for the next cycle.
-- **Control**: the amounts of the control mode and why the Quantity Controller chose the next unit.
-- **Statistics**: uptime, cycles seen and how many cycles each unit ran since the program started.
+- **Control**: the amounts of the control mode and the unit the Quantity Controller chose (why is in the log).
 
 The screen has three pages, shown next to the control mode on the second row:
 

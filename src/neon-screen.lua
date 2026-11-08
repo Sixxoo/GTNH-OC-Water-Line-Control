@@ -337,19 +337,18 @@ local function drawControl(cv, ctx, x, y, w)
     return 3
   end
 
-  local height = ctx.mode == "singleThreadBalancing" and 6 or 4
+  local height = ctx.mode == "singleThreadBalancing" and 5 or 3
   cardFrame(cv, x, y, w, height, "CONTROL", modeLabels[ctx.mode], C.neon)
 
   local top = y + 1
 
   if ctx.mode == "singleThreadBalancing" then
-    row(cv, x + 2, top, inner, "Floor (fill first)", ctx.floorQty > 0 and formatAmount(ctx.floorQty) or "off", C.red, C.card)
-    row(cv, x + 2, top + 1, inner, "Min (then fill to)", formatAmount(ctx.minQty), C.orange, C.card)
+    row(cv, x + 2, top, inner, "Floor", ctx.floorQty > 0 and formatAmount(ctx.floorQty) or "off", C.red, C.card)
+    row(cv, x + 2, top + 1, inner, "Min", formatAmount(ctx.minQty), C.orange, C.card)
     top = top + 2
   end
 
   row(cv, x + 2, top, inner, "Chosen", ctx.decision ~= nil and ctx.decision ~= "" and ctx.decision or "none", C.neon, C.card)
-  cv:put(x + 2, top + 1, fit(ctx.reason or "", inner), C.sub, C.card)
 
   return height
 end
@@ -642,14 +641,9 @@ function neonScreen.render(width, height, ctx)
   y = y + drawCycle(cv, ctx, RX, y, RW)
   y = y + drawControl(cv, ctx, RX, y, RW)
 
-  local height = statsHeight(ctx, RW)
-
-  if bottom - y + 1 - height >= 4 then
-    drawStats(cv, ctx, RX, y, RW, height)
-    y = y + height
-  end
-
-  local logOffset = drawLog(cv, ctx, RX, y, RW, bottom - y + 1)
+  -- The log at the bottom, about a third of the screen, never over the cards above
+  local logHeight = math.min(bottom - y + 1, math.max(6, math.floor((bottom - 2) / 3)))
+  local logOffset = drawLog(cv, ctx, RX, bottom - logHeight + 1, RW, logHeight)
 
   drawFooter(cv, ctx)
 
