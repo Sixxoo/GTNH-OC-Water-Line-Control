@@ -20,7 +20,7 @@ oc.gtMachine("multimachine.purificationunitflocculator", {work = false, sensor =
 oc.transposer({[0] = {{capacity = 2000000}}, [1] = {{name = "polyaluminiumchloride", amount = 4000000}}}, nil,
   "5dcf2167-a9de-4f5a-8727-8287e7e4d98e")
 oc.meInterface({grade1purifiedwater = 33600000, grade2purifiedwater = 87200, grade3purifiedwater = 0}, nil,
-  "261af9d4-a03b-4b15-b1f0-ddbcda629cf7")
+  "0604d547-0b75-4990-bd55-4ac86f1df51d")
 
 local cfg = require("addons.core").load("config")
 

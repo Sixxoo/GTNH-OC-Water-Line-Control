@@ -74,6 +74,7 @@ function t3controller:getCurrentState()
     return "Wait cycle"
   end
 
+  -- While the unit runs, sensor line 2 is its success chance (when idle it is the parallel count)
   local successChance = self.gtSensorParser:getNumber(2)
 
   if successChance == nil then
@@ -109,43 +110,17 @@ function t3controller:initStateMachine()
     end
   })
 
+  -- The unit uses up all PAC in its hatch every second while it runs, and gives +10% success per full
+  -- 100,000 L used in the cycle; any amount over a full 100,000 L cuts the success hard. So the
+  -- program delivers exactly 900,000 L, in parts that fit the hatch (a LuV hatch holds 512,000 L),
+  -- each part rounded down to 100,000 L
   self.stateMachine:createState("work", "Work", {
     onInit = function ()
-      local currentCount = self.gtSensorParser:getNumber(4)
-
-      if currentCount ~= nil and currentCount >= self.requiredCount then
-        self.stateMachine:setState("waitEnd")
-        return
-      end
-
-      local fluidInTank = self.transposerProxy.getFluidInTank(
-        self.transposerLiquids["polyaluminiumchloride"].side,
-        self.transposerLiquids["polyaluminiumchloride"].tank
-      )
-
-      local countToAdd = self.requiredCount
-      -- An empty tank has no amount
-      local amount = type(fluidInTank) == "table" and fluidInTank.amount or 0
-
-      if amount < self.requiredCount then
-        self:markNeedsAttention("Not enough Polyaluminium Chloride for craft")
-        event.push("log_warning", "[T3] Not enough Polyaluminium Chloride for craft")
-
-        countToAdd = amount - (amount % 100000)
-      end
-
-      local _, result = self.transposerProxy.transferFluid(
-        self.transposerLiquids["polyaluminiumchloride"].side,
-        self.hatchSide,
-        countToAdd,
-        self.transposerLiquids["polyaluminiumchloride"].tank
-      )
-
-      if result ~= countToAdd then
-        event.push("log_warning", "[T3] Fluid transfer error")
-      end
-
-      self.stateMachine:setState("waitEnd")
+      self.delivered = 0
+      self.target = self.requiredCount
+    end,
+    onUpdate = function ()
+      self:deliverPac()
     end
   })
 
@@ -158,6 +133,70 @@ function t3controller:initStateMachine()
   end)
 
   self.stateMachine:setState("idle")
+end
+
+---Move the next part of the 900,000 L PAC into the hatch; done when all of it is in
+---@private
+function t3controller:deliverPac()
+  local remaining = self.target - self.delivered
+
+  if remaining <= 0 then
+    self.stateMachine:setState("waitEnd")
+    return
+  end
+
+  local pac = self.transposerLiquids["polyaluminiumchloride"]
+  local source = self.transposerProxy.getFluidInTank(pac.side, pac.tank)
+  local available = type(source) == "table" and source.amount or 0
+
+  -- Free room in the hatch; the unit empties it every second
+  local hatch = self.transposerProxy.getFluidInTank(self.hatchSide, 1)
+  local capacity = type(hatch) == "table" and hatch.capacity or self.requiredCount
+  local free = capacity - (type(hatch) == "table" and hatch.amount or 0)
+
+  if available < remaining then
+    if self.delivered == 0 then
+      self:markNeedsAttention("Not enough Polyaluminium Chloride for craft")
+      event.push("log_warning", "[T3] Not enough Polyaluminium Chloride for craft ("..
+        math.floor(available / 1000).."k of "..math.floor(remaining / 1000).."k)")
+    end
+
+    -- Only full 100,000 L parts: what is over a full part cuts the success
+    remaining = math.min(remaining, available - (available + self.delivered) % 100000)
+
+    if remaining <= 0 then
+      self.stateMachine:setState("waitEnd")
+      return
+    end
+
+    self.target = self.delivered + remaining
+  end
+
+  local part = math.min(remaining, free)
+
+  if part < remaining then
+    part = part - part % 100000
+  end
+
+  if part <= 0 then
+    return   -- the hatch is still full, the unit empties it within a second
+  end
+
+  local _, moved = self.transposerProxy.transferFluid(pac.side, self.hatchSide, part, pac.tank)
+  moved = tonumber(moved) or 0
+  self.delivered = self.delivered + moved
+
+  if moved == 0 then
+    event.push("log_warning", "[T3] Can't move Polyaluminium Chloride into the hatch")
+    self.stateMachine:setState("waitEnd")
+  elseif moved < part then
+    -- A slow transposer moves less per call; the next parts make up for it
+    event.push("log_debug", "[T3] Moved "..math.floor(moved / 1000).."k of "..math.floor(part / 1000).."k PAC")
+  end
+
+  if self.delivered >= self.target then
+    self.stateMachine:setState("waitEnd")
+  end
 end
 
 ---Find side of transposer with fluid

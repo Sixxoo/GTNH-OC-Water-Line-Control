@@ -261,11 +261,16 @@ To build a setup, you will need:
 
 To use the module for t3 water in the `config.lua`
 file you need to enable the module by changing `enable = false` to `enable = true`. 
-You must also specify the address of the transposer in the `transposerAddress` field, to which the ZPM input hatch and the tank with the
+You must also specify the address of the transposer in the `transposerAddress` field, to which the input hatch and the tank with the
 Polyaluminium chloride are connected. `hatchSide` is the side of the transposer with the input hatch: `"up"` (the default, transposer under the hatch),
 `"down"` (transposer above the hatch), `"north"`, `"south"`, `"west"` or `"east"`. The tank can be on any other side.
 
 The controller is connected via MFU to keep it accessible.
+
+Each cycle the program puts exactly 900,000 L of Polyaluminium Chloride into the hatch: +10% success for every full 100,000 L,
+and any amount over a full 100,000 L cuts the success hard. A hatch that holds less (a LuV hatch holds 512,000 L) gets it in parts
+of full 100,000 L, since the unit uses up the hatch every second. With less than 900,000 L in the tank it uses the full 100,000 L parts
+it has and marks T3 "Needs attention".
 
 #### T3 Config part
 
