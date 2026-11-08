@@ -1,0 +1,11 @@
+-- Addons from Sixxoo/GTNH-OC-Addons bundled into the release (with what they need, and core)
+return {
+  "config@1",
+  "clock@1.1",
+  "event-log@1",
+  "screen@1",
+  "neon-ui@1",
+  "recovery@1.2",
+  "installer@1",
+  "autostart@1",
+}

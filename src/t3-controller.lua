@@ -22,11 +22,15 @@ local t3controller = {}
 
 ---Constructor
 ---@param transposerAddress string
----@param hatchSide? string Side of the transposer with the unit's input hatch: "up" (default), "down", "north", "south", "west" or "east"
+---@param hatchSide? string|integer Side of the transposer with the unit's input hatch: "up" (default), "down", ... or 0-5
 ---@return T3Controller
 function t3controller:constructor(transposerAddress, hatchSide)
   self.transposerAddress = transposerAddress
-  self.hatchSide = sides[(hatchSide or "up"):lower()] or sides.up
+  if type(hatchSide) == "number" then
+    self.hatchSide = hatchSide
+  else
+    self.hatchSide = sides[tostring(hatchSide or "up"):lower()] or sides.up
+  end
 
   self.requiredCount = 900000
 

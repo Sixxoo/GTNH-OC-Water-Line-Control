@@ -1,267 +1,260 @@
--- OpenOS keeps loaded libraries until the computer restarts, also after this program was updated.
--- Load this program's own fresh, so an update works without a reboot
+-- Water Line Control: controls a GTNH Water Purification Plant from OpenComputers.
+-- Runs from its folder (/home/water-line), with its addons in addons/.
+
+-- OpenOS keeps loaded libraries until the computer restarts, also after an update: load our own fresh
 for name in pairs(package.loaded) do
-  if name:match("^lib%.") or name:match("^src%.") then
+  if name:match("^lib%.") or name:match("^src%.") or name:match("^addons%.") then
     package.loaded[name] = nil
   end
 end
 
-local component = require("component")
 local computer = require("computer")
 local event = require("event")
 local term = require("term")
-local keyboard = require("keyboard")
 local shell = require("shell")
+local keyboard = require("keyboard")
 
-local configManager = require("lib.config-manager.index")
-local programController = require("lib.program-controller.index")
-local simpleGui = require("lib.simple-gui.index")
+local addons = require("addons.core")
+local cfg = addons.load("config")
+local clock = addons.load("clock")
+local screen = addons.load("screen")
+local ui = addons.load("neon-ui")
+local recovery = addons.load("recovery")
+local installer = addons.load("installer")
+local log = addons.load("event-log", {
+  filePath = "logs.log",
+  tagColors = {["[QC]"] = "cyan", ["[Line]"] = "white"},
+})
 
-local configTemplate = require("src.config-template")
+local schema = require("src.schema")
 local lineControllerClass = require("src.line-controller")
-local listeners = require("src.listeners")
 local discord = require("src.discord")
 local neonScreen = require("src.neon-screen")
 
-local version = require("version")
+local configPath = "config.lua"
+local program = cfg.read("program.lua") or {name = "Water Line Control", version = "?", id = "water-line"}
 
----Read config.lua and build it. A mistake in it is an error, which the program shows and retries
----@return Config config
----@return table raw The values as written in config.lua
-local function loadConfig()
-  package.loaded.config = nil
-  local raw = require("config")
-  return configManager.manager:new(configTemplate):build(raw), raw
-end
-
----Find config.lua the way require finds it
----@return string
-local function configPath()
-  return package.searchpath("config", package.path) or "config.lua"
-end
-
--- Only to know whether to update at the start. A broken config.lua is reported when the program starts
-package.loaded.config = nil
-local isConfigReadable, rawConfig = pcall(require, "config")
-local enableAutoUpdate = not (isConfigReadable and type(rawConfig) == "table" and rawConfig.enableAutoUpdate == false)
-
-local repository = "Sixxoo/GTNH-OC-Water-Line-Control"
-local archiveName = "WaterLineControl"
-
-local program = programController.program:new(enableAutoUpdate, version, repository, archiveName)
-local gui = simpleGui.gui:new(program)
-
----@type Config
+---@type table Running config, checked
 local config = nil
-
----The values of config.lua the running program was built from
+---@type table Controllers t1..t8 of the running config
+local controllers = {}
 ---@type table
+local quantityController = nil
+---@type table
+local lineController = nil
+---@type table The values of config.lua the running program was built from
 local runningRaw = nil
 
----@type LineController
-local lineController = nil
-
-local isStarted = false
-
-local logo = {
-  "__        __    _              _     _               ____            _             _ ",
-  "\\ \\      / /_ _| |_ ___ _ __  | |   (_)_ __   ___   / ___|___  _ __ | |_ _ __ ___ | |",
-  " \\ \\ /\\ / / _` | __/ _ \\ '__| | |   | | '_ \\ / _ \\ | |   / _ \\| '_ \\| __| '__/ _ \\| |",
-  "  \\ V  V / (_| | ||  __/ |    | |___| | | | |  __/ | |__| (_) | | | | |_| | | (_) | |",
-  "   \\_/\\_/ \\__,_|\\__\\___|_|    |_____|_|_| |_|\\___|  \\____\\___/|_| |_|\\__|_|  \\___/|_|"
-}
-
----Rows of the screen
-local screenHeight = 35
-
----Width that fills the screen at screenHeight rows: a character cell is twice as tall as wide
----@return integer width
----@return integer height
-local function fitResolution()
-  local gpu = component.gpu
-  local maxWidth, maxHeight = gpu.maxResolution()
-  local height = math.min(screenHeight, maxHeight)
-  local width = math.min(80, maxWidth)
-
-  local isOk, a, b = pcall(function ()
-    return component.proxy(gpu.getScreen()).getAspectRatio()
-  end)
-
-  if isOk and type(a) == "number" and type(b) == "number" and a > 0 and b > 0 then
-    width = math.max(80, math.min(math.floor(height * 2 * a / b + 0.5), maxWidth))
-  end
-
-  return width, height
-end
-
----Template with one line per row: the screen module draws every row itself
----@return GuiTemplate
-local function buildTemplate()
-  local width, height = fitResolution()
-  local lines = {}
-
-  for y = 1, height do
-    lines[y] = ""
-  end
-
-  return {
-    width = width,
-    background = neonScreen.colors.bg,
-    foreground = neonScreen.colors.text,
-    lines = lines
-  }
-end
-
----Scroll position of the log, 0 is the newest line
 local logOffset = 0
+local controllersStates = {}
+local isFirstStart = true
+local quitAsked, editAsked = false, false
+local isDrawing = true
+local isEditing = false   -- keys typed in the editor must not reach the program
 
 ---Counted since the program started, kept when it starts again after an error
-local stats = {
-  startedAt = computer.uptime(),
-  cycles = 0,
-  unitCycles = {}
-}
+local stats = {startedAt = computer.uptime(), cycles = 0, unitCycles = {}}
 
-local controllersStates = {}
+-- ---------- update at start ----------
 
----Keep what the previous run knew when the program starts again after an error:
----the log on the screen, and the units that need attention
----@param oldConfig Config
----@param newConfig Config
-local function carryOver(oldConfig, newConfig)
-  local oldLog = oldConfig.logger.handlers["scrollList"]
-  local newLog = newConfig.logger.handlers["scrollList"]
+---Ask about a new version before anything runs. true when it was installed (the program ends then)
+local function checkUpdate()
+  local raw = cfg.read(configPath)
 
-  if oldLog ~= nil and newLog ~= nil then
-    newLog.logs = oldLog.logs
-    newLog.lastMessage = oldLog.lastMessage
-    newLog.repeatCount = oldLog.repeatCount
+  if type(raw) == "table" and raw.enableAutoUpdate == false then
+    return false
   end
 
-  for tier = 1, 8 do
-    local key = "t"..tier
-    local oldController = oldConfig.controllers[key]
-    local newController = newConfig.controllers[key]
+  term.write("Looking for a new version...\n")
+  local latest = installer.latest(program)
 
-    if oldController ~= nil and newController ~= nil and oldController.needsAttention == true then
-      newController.needsAttention = true
-      newController.attentionReason = oldController.attentionReason
-      newConfig.quantityController.isAttentionLogged[tier] = oldConfig.quantityController.isAttentionLogged[tier]
-    end
+  if latest == nil or latest.version == nil or installer.compareVersions(latest.version, program.version) <= 0 then
+    return false
   end
 
-  oldConfig.logger:stop()
+  term.write(program.name.." "..latest.version.." is out (you have "..program.version.."). Install it now? [y/N] ")
+  local _, _, char, code = event.pull(15, "key_down")
+
+  if code then
+    event.pull(2, "key_up", nil, nil, code)
+  end
+
+  term.write("\n")
+
+  if char == nil or string.char(char):lower() ~= "y" then
+    return false
+  end
+
+  local isOk, lines = installer.install(program, latest.version)
+
+  for _, line in ipairs(lines) do
+    term.write(line.."\n")
+  end
+
+  if isOk then
+    term.write("Updated. Start it again with: main\n")
+  end
+
+  return isOk
 end
 
-local function init()
-  local newConfig, newRaw = loadConfig()
+-- ---------- config ----------
 
-  if config ~= nil then
-    carryOver(config, newConfig)
+---Read and check config.lua; mistakes are an error (the program shows it and tries again)
+local function loadConfig()
+  local checked, warnings = cfg.load(configPath, schema.config)
+  local raw = cfg.read(configPath)
+
+  for _, warning in ipairs(warnings) do
+    log.warning("[Config] "..warning)
   end
 
-  config = newConfig
-  runningRaw = newRaw
+  return checked, raw
+end
+
+local function isSame(a, b)
+  if type(a) ~= "table" or type(b) ~= "table" then
+    return a == b
+  end
+
+  for key, value in pairs(a) do
+    if not isSame(value, b[key]) then return false end
+  end
+
+  for key in pairs(b) do
+    if a[key] == nil then return false end
+  end
+
+  return true
+end
+
+---Changes that need a fresh start: units and the ME interface are found when the program starts
+local function restartReasons(oldRaw, newRaw)
+  local reasons = {}
+  local oldQc, newQc = oldRaw.quantityController or {}, newRaw.quantityController or {}
+
+  if not isSame(oldRaw.controllers, newRaw.controllers) then
+    reasons[#reasons + 1] = "units (enable, transposers, maxQuarkCount)"
+  end
+
+  if oldQc.meInterfaceAddress ~= newQc.meInterfaceAddress then
+    reasons[#reasons + 1] = "ME interface address"
+  end
+
+  if (tostring(oldQc.controlMode):lower() == "disabled") ~= (tostring(newQc.controlMode):lower() == "disabled") then
+    reasons[#reasons + 1] = "Quantity Controller on or off"
+  end
+
+  return reasons
+end
+
+---New settings that work without a fresh start: log level, Discord, the Quantity Controller's mode and amounts
+local function applyLive(newConfig)
+  addons.load("event-log", {filePath = "logs.log", tagColors = log.settings.tagColors,
+    screenLevel = newConfig.logLevel, fileLevel = newConfig.logLevel})
+  config.logLevel = newConfig.logLevel
+  config.discord = newConfig.discord
+  config.enableAutoStart = newConfig.enableAutoStart
+  config.enableAutoUpdate = newConfig.enableAutoUpdate
   discord.configure(config.discord)
 
-  for i = 1, 8, 1 do
-    local key = "t"..i
+  local _, newQuantity = schema.build(newConfig)
+  quantityController.controlMode = newQuantity.controlMode
+  quantityController.floorQty = newQuantity.floorQty
+  quantityController.minQty = newQuantity.minQty
+  quantityController.waterThresholds = newQuantity.waterThresholds
 
-    if config.controllers[key] ~= nil then
-      controllersStates[key] = "Loading"
-    else
-      controllersStates[key] = "Unused"
-    end
-  end
-
-  gui:setTemplate(buildTemplate())
-
-  term.clear()
-
-  if isStarted == false then
-    event.push("log_info", "Program started, QC mode "..config.quantityController.controlMode)
-    isStarted = true
-
-    if config.logger.handlers["discord"] ~= nil then
-      event.push("log_warning", "[Discord] Old log handler unused, see discord = {}")
-    end
-
-    local units = {}
-
-    for tier = 1, 8 do
-      if config.controllers["t"..tier] ~= nil then
-        table.insert(units, "T"..tier)
-      end
-    end
-
-    discord.start()
-    discord.info("started", "Water Line Control started",
-      "Mode "..config.quantityController.controlMode..", units "..(#units > 0 and table.concat(units, " ") or "none")..".")
-  end
-
-  lineController = lineControllerClass:new()
-  lineController.stats = stats
-  lineController:init(config.controllers)
-
-  for i = 1, 8, 1 do
-    local key = "t"..i
-
-    if config.controllers[key] ~= nil then
-      config.controllers[key]:init()
-    end
-  end
-
-  config.quantityController:init(config.controllers)
-
-  -- Stopping the program switches the plant off. The units are chosen above, so the first new cycle uses the right ones
-  if config.enableAutoStart ~= false then
-    lineController:enable()
+  if quantityController.controlMode ~= "disabled" then
+    quantityController:checkSettings()
+    quantityController:updateWaterLevels()
+    quantityController:updateControllerEnablement()
   end
 end
 
-local function loop()
+local function readKey()
+  local _, _, char, code = event.pull("key_down")
+  event.pull(2, "key_up", nil, nil, code)
+  return string.char(char or 0):lower()
+end
+
+---E while running: edit config.lua, then use it live, start again, or keep the old settings.
+---Returns "restart" when the program should start again with it
+local function editConfig()
+  isDrawing, isEditing = false, true
+  screen.close()
+  local result = nil
+
   while true do
-    config.quantityController:loop()
-    lineController:loop()
+    shell.execute('edit "'..configPath..'"')
+    term.setCursorBlink(false)
 
-    for i = 1, 8, 1 do
-      local key = "t"..i
+    local newConfig, problems = nil, nil
+    local isOk, err = pcall(function ()
+      newConfig, problems = cfg.check(cfg.read(configPath) or {}, schema.config)
+    end)
 
-      if config.controllers[key] ~= nil then
-        config.controllers[key]:loop()
-        controllersStates[key] = config.controllers[key]:getCurrentState()
+    if not isOk or #problems > 0 then
+      term.clear()
+      term.write("config.lua has a mistake, so it was not used:\n\n  ")
+      term.write((isOk and table.concat(problems, "\n  ") or tostring(err)).."\n\n")
+      term.write("E: edit it again    any other key: keep the old settings\n")
+
+      if readKey() ~= "e" then
+        log.warning("[Config] Mistake, old settings kept")
+        break
+      end
+    else
+      local newRaw = cfg.read(configPath)
+      local reasons = restartReasons(runningRaw, newRaw)
+
+      if isSame(runningRaw, newRaw) then
+        -- nothing changed
+      elseif #reasons > 0 then
+        term.clear()
+        term.write("These changes need the program to start again: "..table.concat(reasons, ", ")..".\n")
+        term.write("The plant keeps running, and units that need attention stay off.\n\nStart again now? [y/N] ")
+
+        if readKey() == "y" then
+          log.info("[Config] Starting again with the new settings")
+          result = "restart"
+        else
+          log.warning("[Config] Not used until the program starts again")
+        end
+      else
+        applyLive(newConfig)
+        runningRaw = newRaw
+        log.info("[Config] New settings in use")
       end
 
-      os.sleep(0.1)
+      break
     end
-
-    os.sleep(1)
   end
+
+  screen.open()
+  isDrawing, isEditing = true, false
+  quitAsked, editAsked = false, false
+  return result
 end
 
----Highest limit (threshold) of the waters whose unit is used: the full bar of a water without a cap
----@return number
+-- ---------- screen ----------
+
 local function highestLimit()
   local highest = 0
 
   for index = 1, 9 do
-    if config.controllers["t"..math.min(index, 8)] ~= nil then
-      highest = math.max(highest, config.quantityController.waterThresholds[index] or 0)
+    if controllers["t"..math.min(index, 8)] ~= nil then
+      highest = math.max(highest, quantityController.waterThresholds[index] or 0)
     end
   end
 
   return highest
 end
 
----What the screen shows about each unit that is enabled in config.lua
----@return table[]
 local function unitViews()
-  local quantityController = config.quantityController
   local views = {}
 
   for index = 1, 9 do
-    local tier = math.min(index, 8)
-    local controller = config.controllers["t"..tier]
+    local controller = controllers["t"..math.min(index, 8)]
 
     if controller ~= nil then
       local info = neonScreen.units[index]
@@ -278,7 +271,7 @@ local function unitViews()
         isNext = index <= 8 and quantityController.isTierActive[index] == true,
         used = true,
         needsAttention = index <= 8 and controller.needsAttention == true,
-        attentionReason = index <= 8 and (controller.attentionReason or "") or ""
+        attentionReason = index <= 8 and (controller.attentionReason or "") or "",
       })
     end
   end
@@ -286,14 +279,17 @@ local function unitViews()
   return views
 end
 
-local function guiLoop()
-  local quantityController = config.quantityController
-  local progress, maxProgress = lineController:getCycleProgress()
-  local template = gui.template
+local function draw()
+  if not isDrawing or lineController == nil then
+    return
+  end
 
-  local lines, offset = neonScreen.render(template.width, #template.lines, {
-    clock = config.logger:getTime("%H:%M:%S"),
-    version = version.programVersion,
+  local progress, maxProgress = lineController:getCycleProgress()
+  local width, height = screen.size()
+
+  local lines, offset = neonScreen.render(width, height, {
+    clock = clock.format("%H:%M:%S"),
+    version = program.version,
     mode = quantityController.controlMode,
     plantRunning = maxProgress > 0,
     progress = progress,
@@ -304,243 +300,233 @@ local function guiLoop()
     units = unitViews(),
     decision = quantityController.lastDecision,
     reason = quantityController.lastReason,
-    logs = config.logger.handlers["scrollList"]:getLogs(),
+    logs = log.lines(),
     logOffset = logOffset,
-    stats = {
-      uptime = computer.uptime() - stats.startedAt,
-      cycles = stats.cycles,
-      unitCycles = stats.unitCycles
-    }
+    stats = {uptime = computer.uptime() - stats.startedAt, cycles = stats.cycles, unitCycles = stats.unitCycles},
   })
 
   logOffset = offset
-  gui:show(lines)
+  screen.show(lines)
 end
 
----Compare two values of config.lua
----@param a any
----@param b any
----@return boolean
-local function isSame(a, b)
-  if type(a) ~= "table" or type(b) ~= "table" then
-    return a == b
+---Screen while waiting to start again after an error
+local function drawError(problem, left, attempt, giveUpIn)
+  local width, height = screen.size()
+  local C = ui.colors
+  local cv = ui.canvas(width, height)
+
+  ui.header(cv, {clock = clock.format("%H:%M:%S"), title = "WATER LINE CONTROL", by = "by Sixxo",
+    status = "ERROR", statusColor = C.red, badge = "STARTING AGAIN", badgeColor = C.amber, version = program.version})
+  ui.card(cv, 1, 3, width, 9, "THE PROGRAM HAD AN ERROR", {right = "attempt "..attempt, rightColor = C.amber})
+
+  -- The error over up to 4 rows: its own lines, long ones wrapped
+  local y = 4
+
+  for line in (tostring(problem).."\n"):gmatch("(.-)\n") do
+    local chars, first = ui.split(line), 1
+
+    repeat
+      if y > 7 then break end
+      cv:put(3, y, table.concat(chars, "", first, math.min(#chars, first + width - 5)), C.red, C.card)
+      first, y = first + width - 4, y + 1
+    until first > #chars
   end
 
-  for key, value in pairs(a) do
-    if not isSame(value, b[key]) then
-      return false
-    end
-  end
-
-  for key in pairs(b) do
-    if a[key] == nil then
-      return false
-    end
-  end
-
-  return true
+  ui.row(cv, 3, 9, width - 4, "Starting again in", left.." s", C.text, C.card)
+  ui.row(cv, 3, 10, width - 4, "Gives up in (plant off)", ui.duration(giveUpIn), C.amber, C.card)
+  ui.log(cv, 1, 12, width, height - 12, "EVENT LOG", log.lines(), 0)
+  ui.footer(cv, {keys = {{"E", "edit config"}, {"Q", "stop now (plant off)"}}})
+  screen.show(cv:lines())
 end
 
----Changes that need the program to start again: the units and the ME interface are found when it starts
----@param oldRaw table
----@param newRaw table
----@return string[]
-local function restartReasons(oldRaw, newRaw)
-  local reasons = {}
-  local oldQc, newQc = oldRaw.quantityController or {}, newRaw.quantityController or {}
+-- ---------- keys ----------
 
-  if not isSame(oldRaw.controllers, newRaw.controllers) then
-    table.insert(reasons, "units (enable, transposers, maxQuarkCount)")
+---Keys while the program waits after an error; the listener lives across runs
+local waitingKeys = event.listen("key_down", function (_, _, char)
+  if isEditing then
+    return
   end
 
-  if oldQc.meInterfaceAddress ~= newQc.meInterfaceAddress then
-    table.insert(reasons, "ME interface address")
-  end
+  local key = string.char(char or 0):lower()
 
-  if (tostring(oldQc.controlMode):lower() == "disabled") ~= (tostring(newQc.controlMode):lower() == "disabled") then
-    table.insert(reasons, "Quantity Controller on or off")
-  end
+  if key == "q" then quitAsked = true end
+  if key == "e" then editAsked = true end
+end)
 
-  return reasons
+local function onKey(_, _, _, code)
+  if code == keyboard.keys.up then
+    logOffset = math.max(0, logOffset - 1)
+  elseif code == keyboard.keys.down then
+    logOffset = logOffset + 1
+  end
 end
 
----Use new settings without starting again: the log, Discord and the Quantity Controller's mode and amounts
----@param newConfig Config
-local function applyLive(newConfig)
-  local oldLog = config.logger.handlers["scrollList"]
-  local newLog = newConfig.logger.handlers["scrollList"]
+-- ---------- runs ----------
 
-  if oldLog ~= nil and newLog ~= nil then
-    newLog.logs = oldLog.logs
-    newLog.lastMessage = oldLog.lastMessage
-    newLog.repeatCount = oldLog.repeatCount
-  end
-
-  config.logger:stop()
-  config.logger = newConfig.logger
-  config.discord = newConfig.discord
-  config.enableAutoStart = newConfig.enableAutoStart
-  config.enableAutoUpdate = newConfig.enableAutoUpdate
+local function start()
+  local newConfig, newRaw = loadConfig()
+  config, runningRaw = newConfig, newRaw
+  addons.load("event-log", {filePath = "logs.log", tagColors = log.settings.tagColors,
+    screenLevel = config.logLevel, fileLevel = config.logLevel})
   discord.configure(config.discord)
 
-  local quantityController = config.quantityController
-  local newQuantityController = newConfig.quantityController
+  -- Units that needed attention before an error still need it
+  local attention = {}
 
-  quantityController.controlMode = newQuantityController.controlMode
-  quantityController.floorQty = newQuantityController.floorQty
-  quantityController.minQty = newQuantityController.minQty
-  quantityController.waterThresholds = newQuantityController.waterThresholds
-
-  -- Choose again now, so the screen shows it. A unit switched on now starts in the next cycle,
-  -- and one switched off finishes the cycle it is running
-  if quantityController.controlMode ~= "disabled" then
-    quantityController:checkSettings()
-    quantityController:updateWaterLevels()
-    quantityController:updateControllerEnablement()
-  end
-end
-
----Read one key. Its key_up is waited for too, so it can't reach the program's keys afterwards
----@return string
-local function readKey()
-  local _, _, char, code = event.pull("key_down")
-  event.pull(2, "key_up", nil, nil, code)
-
-  return string.char(char or 0):lower()
-end
-
----E: edit config.lua while the program runs, or while it waits after an error.
----Returns "restart" when the program should start again with it
----@param isRunning boolean
----@return string|nil
-local function onEdit(isRunning)
-  local result = nil
-
-  gui.allowRender = false
-  gui:resetScreen()
-
-  while true do
-    shell.execute('edit "'..configPath()..'"')
-    term.setCursorBlink(false)
-
-    -- Waiting after an error: the program tries the new config.lua when it starts again
-    if not isRunning then
-      break
-    end
-
-    local isOk, newConfig, newRaw = pcall(loadConfig)
-
-    if not isOk then
-      term.clear()
-      term.write("config.lua has a mistake, so it was not used:\n\n")
-      term.write(tostring(newConfig):gsub("\nstack traceback:.*$", "").."\n\n")
-      term.write("E: edit it again    any other key: keep the old settings\n")
-
-      if readKey() ~= "e" then
-        event.push("log_warning", "[Config] Mistake, old settings kept")
-        break
-      end
-    else
-      local reasons = restartReasons(runningRaw, newRaw)
-
-      if isSame(runningRaw, newRaw) then
-        newConfig.logger:stop()
-      elseif #reasons > 0 then
-        newConfig.logger:stop()
-        term.clear()
-        term.write("These changes need the program to start again: "..table.concat(reasons, ", ")..".\n")
-        term.write("The plant keeps running, and units that need attention stay off.\n\n")
-        term.write("Start again now? [y/N] ")
-
-        if readKey() == "y" then
-          event.push("log_info", "[Config] Starting again with the new settings")
-          result = "restart"
-        else
-          event.push("log_warning", "[Config] Not used until the program starts again")
-        end
-      else
-        applyLive(newConfig)
-        runningRaw = newRaw
-        event.push("log_info", "[Config] New settings in use")
-      end
-
-      break
+  for key, controller in pairs(controllers) do
+    if controller.needsAttention then
+      attention[key] = controller.attentionReason
     end
   end
 
-  gui.allowRender = true
+  controllers, quantityController = schema.build(config)
 
-  -- Waiting after an error, the error screen is drawn again; a restart sets up the screen itself
-  if isRunning and result ~= "restart" then
-    gui:resetToTemplate()
+  for tier = 1, 8 do
+    local key = "t"..tier
+    controllersStates[key] = controllers[key] and "Loading" or "Unused"
+
+    if controllers[key] and attention[key] then
+      controllers[key].needsAttention = true
+      controllers[key].attentionReason = attention[key]
+    end
   end
 
-  return result
+  screen.open()
+  term.clear()
+
+  if isFirstStart then
+    isFirstStart = false
+    log.info("Program started, QC mode "..config.quantityController.controlMode)
+    local units = {}
+
+    for tier = 1, 8 do
+      if controllers["t"..tier] then units[#units + 1] = "T"..tier end
+    end
+
+    discord.start()
+    discord.info("started", "Water Line Control started",
+      "Mode "..config.quantityController.controlMode..", units "..(#units > 0 and table.concat(units, " ") or "none")..".")
+  end
+
+  lineController = lineControllerClass:new()
+  lineController.stats = stats
+  lineController:init(controllers)
+
+  for tier = 1, 8 do
+    if controllers["t"..tier] then
+      controllers["t"..tier]:init()
+    end
+  end
+
+  quantityController:init(controllers)
+
+  if config.enableAutoStart ~= false then
+    lineController:enable()
+  end
+
+  recovery.listen("key_down", onKey)
+  recovery.timer(1, draw, math.huge)
+  quitAsked, editAsked = false, false
 end
 
----A run stops: after an error, or before exiting. The plant is left as it is
-local function onStop()
-  listeners.cancelAll()
+local function step()
+  quantityController:loop()
+  lineController:loop()
+
+  for tier = 1, 8 do
+    local key = "t"..tier
+
+    if controllers[key] then
+      controllers[key]:loop()
+      controllersStates[key] = controllers[key]:getCurrentState()
+    end
+
+    os.sleep(0.1)
+  end
+
+  os.sleep(1)
+
+  if editAsked then
+    editAsked = false
+
+    if editConfig() == "restart" then
+      return "restart"
+    end
+  end
+
+  return not quitAsked
 end
 
----The text of an error for Discord: without the stack traceback, on one line
----@param problem any
----@return string
 local function errorText(problem)
-  local text = tostring(problem):gsub("\nstack traceback:.*$", ""):gsub("%s*\n%s*", " ")
-  return text
+  return (tostring(problem):gsub("\nstack traceback:.*$", ""):gsub("%s*\n%s*", " "))
 end
 
-local function onError(problem)
-  discord.alert("error", "errors", "Error, starting again", errorText(problem):gsub("[%.%s]*$", "")
+local function stop(reason)
+  if reason == "quit" or reason == "restart" then
+    return
+  end
+
+  log.error(errorText(reason))
+  discord.alert("error", "errors", "Error, starting again", errorText(reason):gsub("[%.%s]*$", "")
     ..". The program starts again every 30 s, and switches the plant off if it still fails after 5 minutes.")
 end
 
-local function onRecovered()
+local function safe(problem)
+  if lineController ~= nil then
+    pcall(lineController.disable, lineController)
+  end
+
+  if problem ~= nil then
+    discord.alert("gaveUp", "errors", "Stopped after 5 minutes of errors",
+      "The Water Purification Plant is switched off. Fix the problem, then run main. Last error: "..errorText(problem))
+  end
+end
+
+local function waiting(problem, left, attempt, giveUpIn)
+  if editAsked then
+    isEditing = true
+    screen.close()
+    shell.execute('edit "'..configPath..'"')
+    screen.open()
+    isEditing = false
+    quitAsked, editAsked = false, false
+  end
+
+  pcall(drawError, problem, left, attempt, giveUpIn)
+
+  if quitAsked then
+    return "quit"
+  end
+end
+
+local function started()
   discord.clear("error", "errors", "Running again after an error", "")
 end
 
-local function onGiveUp(problem)
-  discord.alert("gaveUp", "errors", "Stopped after 5 minutes of errors",
-    "The Water Purification Plant is switched off. Fix the problem, then run main. Last error: "..errorText(problem))
-end
+-- ---------- main ----------
 
-local function onExit()
-  if lineController ~= nil then
-    lineController:disable()
+if not checkUpdate() then
+  log.start()
+  screen.open()
+  local result, problem = recovery.run({start = start, step = step, stop = stop, safe = safe,
+    waiting = waiting, started = started})
+
+  if result == "quit" and lineController ~= nil then
+    pcall(lineController.disable, lineController)   -- Stopping the program switches the plant off
   end
 
-  -- Messages that are still waiting get a few seconds
   discord.finish(10)
-end
-
----Stop what keeps running after a run: on exit, or when the next start finds this one never got to exit
-local function onRelease()
-  listeners.cancelAll()
   discord.stop()
+  log.stop()
+  event.cancel(waitingKeys)
+  screen.close()
+  term.clear()
 
-  if config ~= nil then
-    config.logger:stop()
+  if result == "gave up" then
+    io.stderr:write("Stopped after 5 minutes of errors. Last error:\n"..errorText(problem).."\n")
+  else
+    print("Water Line Control stopped. The plant is switched off. Start it again with: main")
   end
+else
+  event.cancel(waitingKeys)
 end
-
-program:registerLogo(logo)
-program:registerOnInit(init)
-program:registerOnStop(onStop)
-program:registerOnExit(onExit)
-program:registerOnRelease(onRelease)
-program:registerOnErrors(onError, onRecovered, onGiveUp)
-program:registerOnEdit(onEdit)
-program:registerKeyHandler(keyboard.keys.e, function ()
-  event.push("program_edit")
-end)
--- The newest line is at the top of the log: down shows older lines
-program:registerKeyHandler(keyboard.keys.up, function ()
-  logOffset = math.max(0, logOffset - 1)
-end)
-program:registerKeyHandler(keyboard.keys.down, function ()
-  logOffset = logOffset + 1
-end)
-program:registerThread(loop)
-program:registerTimer(guiLoop, math.huge, 1)
-program:start()

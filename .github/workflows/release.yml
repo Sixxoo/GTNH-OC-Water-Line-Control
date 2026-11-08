@@ -1,65 +1,77 @@
 name: Release
 
-# A push to main with a new programVersion in version.lua makes the release v<version> with the
-# archive the installer downloads. A release published by hand on GitHub gets its archive too
+# A push to main with a new version in program.lua makes the release v<version>: the addons from
+# Sixxoo/GTNH-OC-Addons are bundled in, the tests run, then the archive the installer downloads is attached.
 on:
   push:
     branches: [main]
     paths:
-      - version.lua
+      - program.lua
       - .github/workflows/release.yml
-  release:
-    types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
+    - uses: actions/checkout@v4
+
+    - name: Get the addons
       uses: actions/checkout@v4
       with:
-        ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+        repository: Sixxoo/GTNH-OC-Addons
+        path: _addons
+
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install lupa and pillow
+      run: pip install lupa pillow
 
     - name: Read the version
       id: version
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        version=$(grep -o 'programVersion = "[^"]*"' version.lua | cut -d'"' -f2)
-        tag="v$version"
-
-        if [ "${{ github.event_name }}" = "release" ] && [ "${{ github.event.release.tag_name }}" != "$tag" ]; then
-          echo "version.lua says $version, but the tag is ${{ github.event.release.tag_name }}"
-          exit 1
-        fi
-
-        echo "tag=$tag" >> "$GITHUB_OUTPUT"
-
-        # A push only makes a release for a version that has none yet
-        if [ "${{ github.event_name }}" = "push" ] && gh release view "$tag" > /dev/null 2>&1; then
+        version=$(grep -o 'version = "[^"]*"' program.lua | head -1 | cut -d'"' -f2)
+        echo "tag=v$version" >> "$GITHUB_OUTPUT"
+        if gh release view "v$version" > /dev/null 2>&1; then
           echo "skip=true" >> "$GITHUB_OUTPUT"
         fi
+
+    - name: Bundle the addons
+      if: steps.version.outputs.skip != 'true'
+      run: python3 _addons/tools/bundle.py . _addons
+
+    - name: Run the tests
+      if: steps.version.outputs.skip != 'true'
+      run: python3 _addons/testkit/run.py --root . tests
+
+    - name: Keep screen snapshots
+      if: always() && steps.version.outputs.skip != 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: snapshots
+        path: _addons/testkit/out/
+        if-no-files-found: ignore
 
     - name: Create tar archive
       if: steps.version.outputs.skip != 'true'
       run: |
         tar -cf files.tar --exclude-from=.tarignore *
-        tar -tf files.tar | grep -v '/$' > waterline.files
-        echo waterline.files >> waterline.files
+        tar -tf files.tar | grep -v '/$' > water-line.files
+        echo water-line.files >> water-line.files
         rm files.tar
         tar -cvf WaterLineControl.tar --exclude-from=.tarignore *
 
     - name: Create the release
-      if: steps.version.outputs.skip != 'true' && github.event_name == 'push'
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: gh release create "${{ steps.version.outputs.tag }}" --target "${{ github.sha }}" --title "${{ steps.version.outputs.tag }}" --notes "Version ${{ steps.version.outputs.tag }}"
-
-    - name: Attach the archive
       if: steps.version.outputs.skip != 'true'
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: gh release upload "${{ steps.version.outputs.tag }}" WaterLineControl.tar --clobber
+      run: |
+        gh release create "${{ steps.version.outputs.tag }}" WaterLineControl.tar --target "${{ github.sha }}" \
+          --title "${{ steps.version.outputs.tag }}" --notes "Version ${{ steps.version.outputs.tag }}"

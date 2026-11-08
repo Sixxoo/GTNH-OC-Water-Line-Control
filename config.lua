@@ -1,25 +1,8 @@
 local config = {
-  enableAutoUpdate = true, -- Enable auto update on start
+  enableAutoUpdate = true, -- Look for a new version when the program starts, and ask before installing it
   enableAutoStart = true, -- Switch the Water Purification Plant on when the program starts. Stopping the program switches it off
 
-  logger = {
-    name = "Water Line Control",
-    timeZone = 1, -- Your time zone (UTC offset)
-    handlers = {
-      ["file"] = {
-        type = "file",
-        logLevel = "debug",
-        messageFormat = "{Time:%d.%m.%Y %H:%M:%S} [{LogLevel}]: {Message}",
-        filePath = "logs.log"
-      },
-      ["scrollList"] = {
-        type = "scrollList",
-        logLevel = "debug",
-        messageFormat = "{Time:%H:%M} {Message}",
-        logsListSize = 32
-      },
-    }
-  },
+  logLevel = "info", -- Lowest level on the screen and in logs.log: "debug", "info", "warning" or "error"
 
   discord = { -- Messages to a Discord channel through a webhook. Needs an internet card
     webhookUrl = "", -- Channel settings > Integrations > Webhooks > New Webhook > Copy Webhook URL. "" is off

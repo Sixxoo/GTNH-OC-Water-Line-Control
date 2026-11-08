@@ -1,30 +1,16 @@
--- Screen in the neon style: blue framed cards on near black, red corners, coloured by meaning.
--- Everything is drawn into a grid of cells first. Each row of the grid becomes one line with
--- colour codes (&0xRRGGBB; foreground, &&0xRRGGBB; background) for simple-gui, which only
--- sends the rows that changed to the screen.
+-- Water Line's screen, built from neon-ui pieces: the units with their water bars, cycle, control,
+-- statistics and the log. Returns the lines for the screen addon
 local formatAmount = require("src.format-amount")
+local ui = require("addons.core").load("neon-ui")
 
 local neonScreen = {}
 
----Colours
-neonScreen.colors = {
-  bg = 0x03050A, card = 0x090C14, face = 0x0B0F18, alt = 0x101826,
-  neon = 0x00B4FF, red = 0xFF2A3D, green = 0x2BE05A, amber = 0xFFB020, yellow = 0xFFE14D,
-  orange = 0xFF8A1F, cyan = 0x2EF0F0,
-  text = 0xFFFFFF, dim = 0xB9C7DB, sub = 0xA9D4FF, na = 0x6B7A8F, track = 0x1E2C40, line = 0x14507A,
-}
-
-local C = neonScreen.colors
-
----Colour names used in log lines, in the neon colours
-neonScreen.logPalette = {
-  white = C.text, lightGray = C.na, gray = C.na, yellow = C.amber, red = C.red,
-  cyan = C.neon, green = C.green, lime = C.green, darkOrange = C.orange,
-}
+neonScreen.colors = ui.colors
+neonScreen.logPalette = ui.logPalette
+local C = ui.colors
 
 local CH = {
-  tl = "┌", tr = "┐", bl = "└", br = "┘", h = "─", v = "│", hh = "━",
-  lt = "├", rt = "┤", next = "▶", cross = "✗", mark = "┃",
+  h = "─", lt = "├", rt = "┤", next = "▶", cross = "✗", mark = "┃",
 }
 
 ---Units of the Water Purification Plant, by tier. Index 9 is Stabilised Baryonic Matter, made by T8
@@ -47,214 +33,22 @@ local modeLabels = {
   singleThreadBalancing = "BALANCING",
 }
 
----Split UTF-8 text into characters. The screen font draws every character used here one cell wide
----@param text string
----@return string[]
-local function chars(text)
-  local list = {}
+local textLength = ui.length
+local fit = ui.fit
+local row = ui.row
+local duration = ui.duration
 
-  for char in tostring(text):gmatch("[%z\1-\127\194-\244][\128-\191]*") do
-    list[#list + 1] = char
-  end
-
-  return list
-end
-
-local function textLength(text)
-  return #chars(text)
-end
-
----Shorten text to a width, with a dot at the end when it was cut
----@param text string
----@param width integer
----@return string
-local function fit(text, width)
-  local list = chars(text)
-
-  if #list <= width then
-    return text
-  end
-
-  if width <= 1 then
-    return table.concat(list, "", 1, math.max(0, width))
-  end
-
-  return table.concat(list, "", 1, width - 1).."."
-end
-
----@class NeonCanvas
-local canvas = {}
-canvas.__index = canvas
-
----@param width integer
----@param height integer
----@return NeonCanvas
 function neonScreen.canvas(width, height)
-  local self = setmetatable({width = width, height = height, char = {}, fg = {}, bg = {}}, canvas)
-
-  for y = 1, height do
-    self.char[y], self.fg[y], self.bg[y] = {}, {}, {}
-
-    for x = 1, width do
-      self.char[y][x], self.fg[y][x], self.bg[y][x] = " ", C.text, C.bg
-    end
-  end
-
-  return self
-end
-
----Write text. With a width it is padded or cut to it
-function canvas:put(x, y, text, fg, bg, width)
-  if y < 1 or y > self.height then
-    return
-  end
-
-  local list = chars(text)
-
-  if width ~= nil then
-    while #list < width do
-      list[#list + 1] = " "
-    end
-  end
-
-  for i, char in ipairs(list) do
-    if width ~= nil and i > width then
-      break
-    end
-
-    local cx = x + i - 1
-
-    if cx >= 1 and cx <= self.width then
-      self.char[y][cx] = char
-      self.fg[y][cx] = fg or C.text
-
-      if bg ~= nil then
-        self.bg[y][cx] = bg
-      end
-    end
-  end
-end
-
-function canvas:fill(x, y, width, height, bg)
-  for row = y, y + height - 1 do
-    self:put(x, row, string.rep(" ", width), C.text, bg)
-  end
-end
-
----Write a log line with colour names (&white; ...), cut to a width
-function canvas:putCoded(x, y, text, width, bg)
-  local fg = C.text
-  local column = 0
-  local i = 1
-
-  while i <= #text and column < width do
-    local code = text:match("^&&?([^;]*);", i)
-
-    if code ~= nil then
-      local isBackground = text:sub(i + 1, i + 1) == "&"
-      local color = neonScreen.logPalette[code] or tonumber(code)
-
-      if color ~= nil and not isBackground then
-        fg = color
-      end
-
-      i = i + #code + (isBackground and 3 or 2)
-    else
-      local char = text:match("^[%z\1-\127\194-\244][\128-\191]*", i)
-      self:put(x + column, y, char, fg, bg)
-      column = column + 1
-      i = i + #char
-    end
-  end
-end
-
----The rows of the grid as lines with colour codes
----@return string[]
-function canvas:lines()
-  local lines = {}
-
-  for y = 1, self.height do
-    local parts = {}
-    local fg, bg = nil, nil
-
-    for x = 1, self.width do
-      local char = self.char[y][x]
-
-      if self.bg[y][x] ~= bg then
-        bg = self.bg[y][x]
-        parts[#parts + 1] = string.format("&&0x%06X;", bg)
-      end
-
-      -- A space shows only its background, so its foreground doesn't need a code
-      if char ~= " " and self.fg[y][x] ~= fg then
-        fg = self.fg[y][x]
-        parts[#parts + 1] = string.format("&0x%06X;", fg)
-      end
-
-      parts[#parts + 1] = char
-    end
-
-    lines[y] = table.concat(parts)
-  end
-
-  return lines
-end
-
--- ---------- pieces ----------
-
----Top edge of a card: title on the left, a value on the right
-local function cardTop(cv, x, y, w, title, right, rightColor)
-  cv:put(x, y, CH.tl..string.rep(CH.h, w - 2)..CH.tr, C.neon, C.card)
-  cv:put(x, y, CH.tl, C.red, C.card)
-
-  if title ~= nil and title ~= "" then
-    cv:put(x + 2, y, " "..title.." ", C.text, C.card)
-  end
-
-  if right ~= nil and right ~= "" then
-    local text = " "..right.." "
-    cv:put(x + w - 2 - textLength(text), y, text, rightColor or C.dim, C.card)
-  end
+  return ui.canvas(width, height)
 end
 
 local function cardFrame(cv, x, y, w, h, title, right, rightColor)
-  cv:fill(x, y, w, h, C.card)
-  cardTop(cv, x, y, w, title, right, rightColor)
-  cv:put(x, y + h - 1, CH.bl..string.rep(CH.h, w - 2)..CH.br, C.neon, C.card)
-  cv:put(x + w - 1, y + h - 1, CH.br, C.red, C.card)
-
-  for row = y + 1, y + h - 2 do
-    cv:put(x, row, CH.v, C.neon, C.card)
-    cv:put(x + w - 1, row, CH.v, C.neon, C.card)
-  end
+  ui.card(cv, x, y, w, h, title, {right = right, rightColor = rightColor})
 end
 
----Thin bar: heavy line for the filled part, light line for the rest
+---Bar without the slider; stockBar adds it where the stock is
 local function thinBar(cv, x, y, w, fraction, color, bg)
-  local filled = math.max(0, math.min(w, math.floor((fraction or 0) * w + 0.5)))
-  cv:put(x, y, string.rep(CH.hh, filled), color, bg)
-  cv:put(x + filled, y, string.rep(CH.h, w - filled), C.track, bg)
-end
-
----Label on the left and value on the right of a card row
-local function row(cv, x, y, w, label, value, valueColor, bg)
-  cv:put(x, y, fit(label, w), C.dim, bg)
-
-  if value ~= nil then
-    local text = fit(value, w - textLength(label) - 1)
-    cv:put(x + w - textLength(text), y, text, valueColor or C.text, bg)
-  end
-end
-
-local function duration(seconds)
-  seconds = math.max(0, math.floor(seconds))
-  local hours, minutes = math.floor(seconds / 3600), math.floor(seconds % 3600 / 60)
-
-  if hours > 0 then
-    return string.format("%dh %02dm", hours, minutes)
-  end
-
-  return string.format("%dm %02ds", minutes, seconds % 60)
+  ui.bar(cv, x, y, w, fraction, {color = color, bg = bg, slider = false})
 end
 
 ---Text and colour of a unit's state

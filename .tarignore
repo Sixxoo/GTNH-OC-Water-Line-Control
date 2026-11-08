@@ -1,11 +1,13 @@
 .tarignore
 .gitignore
-config-descriptor.yml
 .github/
 .git/
+_addons
 docs
+tests
 *.md
 *.png
 *.zip
 releases
+files.tar
 WaterLineControl.tar

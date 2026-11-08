@@ -14,6 +14,7 @@ What the fork adds:
 - The program switches the Water Purification Plant back on when it starts (`enableAutoStart`), so stopping it to edit `config.lua` no longer leaves the plant off.
 - The log on the screen shows the time, which units the Quantity Controller chose and why, and when a unit or the plant stops.
 - Auto update and the installer use this fork's releases.
+- Built on [GTNH-OC-Addons](https://github.com/Sixxoo/GTNH-OC-Addons): the screen, config, log, installer and recovery are shared addons, bundled into each release.
 
 > [!CAUTION]
 > For GTNH **2.9** and newer only.
@@ -95,17 +96,18 @@ A Tier 3 CPU allows 16, and only a server can hold the Component Bus that adds 1
 1. In the rack's GUI, link the server's connector to the side of the rack where the cable to the screen and the machines comes in.
    A screen or cable touching the rack is not enough: until it is linked, the server only sees its own parts and the screen stays blank.
 2. Install OpenOS on the hard drive: boot from an OpenOS floppy (a Disk Drive mountable in the rack, or a normal computer with a disk drive), run `install` and pick the hard drive.
-3. Run this command to install the fork. It downloads the latest release into `/home`.
+3. Run this command to install the fork. It downloads the latest release into `/home/water-line`.
 
 ```shell
 wget -f https://raw.githubusercontent.com/Sixxoo/GTNH-OC-Water-Line-Control/main/setup.lua && setup
 ```
 
-If there is a `config.lua` already, your values are carried into the new one, with its new settings and comments, and the installer lists what changed.
+If there is a `/home/water-line/config.lua` already, your values are carried into the new one, with its new settings and comments, and the installer lists what changed.
 A new setting that means something when it is left out gets the value that keeps what the program did: a missing `floorQty` becomes `0` (no floor stage), not the default.
 Your old file is kept as `config.old.lua` (or `config.old2.lua` and so on). If your file can't be read, it stays as it is and the new one is saved as `config.default.lua`.
 
-The installer then asks whether to start Water Line Control when the computer boots, and, with a Redstone Card in the computer,
+The installer then asks for your time zone (once per computer, kept in `/home/addons.cfg` for every program),
+whether to start Water Line Control when the computer boots, and, with a Redstone Card in the computer,
 whether a redstone signal should turn the computer on (see below).
 
 The installer of the original program (`pastebin run ESUAMAGx`) installs the original, without the Quantity Controller.
@@ -113,14 +115,10 @@ The installer of the original program (`pastebin run ESUAMAGx`) installs the ori
 To start the program, run:
 
 ```shell
-main
+cd /home/water-line && main
 ```
 
-To start it whenever the computer boots, answer yes to the installer's question, or add it to `/home/.shrc` yourself:
-
-```shell
-echo 'cd /home && main' >> /home/.shrc
-```
+To start it whenever the computer boots, answer yes to the installer's question.
 
 To turn the server back on after a power loss, put a Redstone Card in it and answer yes to the installer's question
 (or run `lua` and enter `component.redstone.setWakeThreshold(1)`; the card remembers it).
@@ -130,11 +128,25 @@ Keep the clock away from the screen: a redstone pulse turns an OpenComputers scr
 #### Updating and removing
 
 With `enableAutoUpdate = true`, the program checks for a new version when it starts and asks before installing it.
-You can also stop it (Q) and run `update`: it shows the installed and the newest version, and asks before installing.
+`update-all` checks every program installed with the addons installer and updates them after one yes.
 Both keep your values in the new `config.lua`, as described above.
 
-`uninstall` removes the files Water Line Control installed (listed in `/home/waterline.files`), and leaves other programs in `/home` alone.
-It asks before removing `config.lua`, removes its auto-start line, and asks whether to turn off wake on redstone.
+`cd /home/water-line && uninstall` removes the files Water Line Control installed (listed in `water-line.files`),
+its auto-start line and its entry in `/home/.programs`. It asks before removing `config.lua`.
+
+#### Coming from 2.1.x
+
+Up to 2.1.7 the program was installed straight into `/home`. 2.2.0 lives in `/home/water-line`.
+Install it with the setup command above (the old version can't update itself to the new place), then copy your settings over
+and remove the old files:
+
+```shell
+cp /home/config.lua /home/water-line/config.old.lua
+rm -r /home/src /home/lib /home/main.lua /home/version.lua /home/update.lua /home/uninstall.lua /home/waterline.files
+```
+
+Then open `/home/water-line/config.lua` and set your addresses and limits (your old values are in `config.old.lua` next to it).
+The `logger` block is gone: the time zone is asked by the installer, and `logLevel` sets what the screen and `logs.log` show.
 
 #### When something goes wrong
 
@@ -144,10 +156,6 @@ The screen counts down to the next try. For a mistake in `config.lua`, press E t
 If it still fails after 5 minutes, it switches the plant off and stops: fix the problem, then run `main`.
 
 Press Q to stop the program at any time. This switches the plant off too.
-
-> [!NOTE]  
-> For convenient configuration you can use the web configurator.
-> [GTNH-OC-Web-Configurator](https://navatusein.github.io/GTNH-OC-Web-Configurator/#/configurator?url=https%3A%2F%2Fraw.githubusercontent.com%2FSixxoo%2FGTNH-OC-Water-Line-Control%2Frefs%2Fheads%2Fmain%2Fconfig-descriptor.yml)
 
 #### Computer setup
 
@@ -553,10 +561,6 @@ quantityController = { -- Decides which units run, from the amount of each water
 
 ## Configuration
 
-> [!NOTE]  
-> For convenient configuration you can use the web configurator.
-> [GTNH-OC-Web-Configurator](https://navatusein.github.io/GTNH-OC-Web-Configurator/#/configurator?url=https%3A%2F%2Fraw.githubusercontent.com%2FSixxoo%2FGTNH-OC-Water-Line-Control%2Frefs%2Fheads%2Fmain%2Fconfig-descriptor.yml)
-
 General configuration in file `config.lua`
 The configuration of water line modules is described in paragraph [Water Line Setup](#water-line-setup),
 and the `quantityController` settings in [Quantity Controller](#quantity-controller).
@@ -573,10 +577,10 @@ The water line keeps running while you edit, and the Quantity Controller keeps c
   need the program to start again. It asks: Y starts it again in place, without switching the plant off. N keeps the running settings until the next start.
 - If the file has a mistake, it is shown: E edits it again, any other key keeps the settings that are running.
 
-Enable auto update when starting the program.
+Look for a new version when the program starts, and ask before installing it.
 
 ```lua
-enableAutoUpdate = true, -- Enable auto update on start
+enableAutoUpdate = true, -- Look for a new version when the program starts, and ask before installing it
 ```
 
 The program switches the Water Purification Plant off whenever it stops, for example when you stop it to edit `config.lua` or when it crashes.
@@ -588,38 +592,22 @@ A `config.lua` without this line counts as `true`.
 enableAutoStart = true, -- Switch the Water Purification Plant on when the program starts. Stopping the program switches it off
 ```
 
-In the `timeZone` field you can specify your time zone.
+What the screen's log and `logs.log` show. The time zone is set once per computer in `/home/addons.cfg`
+(the installer asks for it; change it with `addons-config`).
 
 ```lua
-logger = {
-  name = "Water Line Control",
-  timeZone = 3, -- Your time zone
-  handlers = {
-    ["file"] = {
-      type = "file",
-      logLevel = "debug",
-      messageFormat = "{Time:%d.%m.%Y %H:%M:%S} [{LogLevel}]: {Message}",
-      filePath = "logs.log"
-    },
-    ["scrollList"] = {
-      type = "scrollList",
-      logLevel = "debug",
-      messageFormat = "{Time:%H:%M} {Message}",
-      logsListSize = 32
-    },
-  }
-},
+logLevel = "info", -- Lowest level on the screen and in logs.log: "debug", "info", "warning" or "error"
 ```
 
-The log on the screen (`scrollList`) shows the time and what the program does, newest on top. Scroll it with the arrow keys.
+The log on the screen shows the time and what the program does, newest on top. Scroll it with the arrow keys.
 - `[QC] Next cycle: T2 (G2 7.3M, lowest stock)` - the units the Quantity Controller chose, each time the choice changes, and why ("under floor", "under min", "lowest stock").
 - `[T3] Needs attention, switch it on when fixed` and `[T3] Switched on by hand, back in use`.
 - `[Line] Plant stopped (switched off or no power)` and `[Line] Water Purification Plant switched on`.
-- `[Line] Cycle started: T2` - the units running in each new cycle. This is a `debug` line, set `logLevel = "info"` to keep it off the screen.
+- `[Line] Cycle started: T2` - the units running in each new cycle. This is a `debug` line, shown with `logLevel = "debug"`.
   "Cycle started: no units" while a unit was chosen means GregTech didn't start it, usually because an input (water, Ozone, a catalyst) was missing.
 
-The same line again doesn't add a new row, the newest row gets a count instead, e.g. `[Line] Cycle started: T2 (x4)`. `logs.log` keeps every line.
-A `scrollList` without `messageFormat` uses `"{Time:%H:%M} {Message}"`.
+The same line again doesn't add a new row, the newest row gets a count instead, e.g. `[Line] Cycle started: T2 (x4)`.
+`logs.log` keeps every line; at 64 KB it becomes `logs.log.old` and a new file starts.
 
 <a id="discord"></a>
 
@@ -662,7 +650,7 @@ If sending doesn't work (no internet card, a wrong webhook), the log says why, o
 
 Keep the webhook URL private: anyone who has it can post in that channel. The program never shows it on the screen or in the log.
 
-The old `["discord"]` handler in `logger.handlers` is no longer used. A `config.lua` that still has it loads, and the log reminds you to use the `discord` block instead.
+
 
 <a id="credits"></a>
 

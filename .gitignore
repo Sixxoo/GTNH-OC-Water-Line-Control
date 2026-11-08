@@ -62,3 +62,4 @@ luac.out
 .ionide
 # Every released archive is kept
 !releases/*.tar
+addons/
