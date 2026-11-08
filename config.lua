@@ -66,7 +66,7 @@ local config = {
 
   quantityController = { -- Decides which units run, from the amount of each water in the ME network
     controlMode = "singleThreadBalancing", -- "disabled", "multiThread", "singleThread" or "singleThreadBalancing"
-    meInterfaceAddress = "261af9d4-a03b-4b15-b1f0-ddbcda629cf7", -- Address of me interface on the network which stores the water
+    meInterfaceAddress = "0604d547-0b75-4990-bd55-4ac86f1df51d", -- Address of me interface on the network which stores the water
 
     -- singleThreadBalancing picks one unit each cycle, in this order:
     -- 1. A water under floorQty: the lowest tier runs
