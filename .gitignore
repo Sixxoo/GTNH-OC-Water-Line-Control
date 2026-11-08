@@ -63,3 +63,6 @@ luac.out
 # Every released archive is kept
 !releases/*.tar
 addons/
+stats.dat
+stats.dat.tmp
+craft-history.log

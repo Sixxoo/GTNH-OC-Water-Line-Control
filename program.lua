@@ -1,7 +1,7 @@
 return {
   id = "water-line",
   name = "Water Line Control",
-  version = "2.2.1",
+  version = "2.3.0",
   repository = "Sixxoo/GTNH-OC-Water-Line-Control",
   branch = "main",
   archive = "WaterLineControl.tar",

@@ -113,6 +113,10 @@ function lineController:logCycleStart()
       local tier = tonumber(name:sub(2))
       self.stats.unitCycles[tier] = (self.stats.unitCycles[tier] or 0) + 1
     end
+
+    if self.stats.onCycle ~= nil then
+      pcall(self.stats.onCycle, running)
+    end
   end
 end
 

@@ -21,6 +21,8 @@ local screen = addons.load("screen")
 local ui = addons.load("neon-ui")
 local recovery = addons.load("recovery")
 local installer = addons.load("installer")
+local tabs = addons.load("tabs")
+local statsData = addons.load("stats")
 local log = addons.load("event-log", {
   filePath = "logs.log",
   tagColors = {["[QC]"] = "cyan", ["[Line]"] = "white"},
@@ -54,6 +56,22 @@ local isEditing = false   -- keys typed in the editor must not reach the program
 
 ---Counted since the program started, kept when it starts again after an error
 local stats = {startedAt = computer.uptime(), cycles = 0, unitCycles = {}}
+
+-- Kept across restarts in stats.dat: every cycle and which units ran
+stats.onCycle = function (running)
+  statsData.add("cycles")
+
+  for _, name in ipairs(running) do
+    statsData.add("cycles."..name:lower())
+  end
+end
+
+---Pages of the screen
+local pages = tabs.new({
+  {id = "overview", title = "OVERVIEW"},
+  {id = "stats", title = "STATISTICS"},
+  {id = "log", title = "LOG"},
+})
 
 -- ---------- update at start ----------
 
@@ -279,6 +297,59 @@ local function unitViews()
   return views
 end
 
+---What the statistics page shows
+local function statsView()
+  local view = {
+    total = statsData.total("cycles"),
+    last24 = statsData.last("cycles", 24),
+    rate24 = statsData.rate("cycles", 24),
+    units = {}, waters = {},
+    hours = statsData.hours("cycles", 24),
+    hourLabels = {},
+    uptime = statsData.uptime(),
+  }
+
+  local since = view.uptime.since
+  view.since = since and clock.format("%d.%m.%Y %H:%M", since) or nil
+
+  local hour = math.floor(clock.now() / 3600)
+
+  for i = 1, 24 do
+    view.hourLabels[i] = clock.format("%H", (hour - 24 + i) * 3600)
+  end
+
+  for tier = 1, 9 do
+    if controllers["t"..math.min(tier, 8)] ~= nil then
+      local info = neonScreen.units[tier]
+      local label = tier <= 8 and ("T"..tier) or "BM"
+
+      if tier <= 8 then
+        view.units[#view.units + 1] = {label = label, short = info.short,
+          total = statsData.total("cycles.t"..tier), last24 = statsData.last("cycles.t"..tier, 24)}
+      end
+
+      local reading = statsData.reading("water.t"..tier, 24)
+      view.waters[#view.waters + 1] = {label = label, water = info.water,
+        now = quantityController.waterLevels[tier], min = reading and reading.min, max = reading and reading.max,
+        change = reading and reading.first and quantityController.waterLevels[tier] and
+          (quantityController.waterLevels[tier] - reading.first) or nil}
+    end
+  end
+
+  return view
+end
+
+---Write each water's stock into the statistics
+local function recordWater()
+  for tier = 1, 9 do
+    local level = quantityController and quantityController.waterLevels[tier]
+
+    if controllers["t"..math.min(tier, 8)] ~= nil and level ~= nil then
+      statsData.record("water.t"..tier, level)
+    end
+  end
+end
+
 local function draw()
   if not isDrawing or lineController == nil then
     return
@@ -302,6 +373,9 @@ local function draw()
     reason = quantityController.lastReason,
     logs = log.lines(),
     logOffset = logOffset,
+    tab = pages:current(),
+    tabs = pages,
+    statsView = pages:current() == "stats" and statsView() or nil,
     stats = {uptime = computer.uptime() - stats.startedAt, cycles = stats.cycles, unitCycles = stats.unitCycles},
   })
 
@@ -353,8 +427,12 @@ local waitingKeys = event.listen("key_down", function (_, _, char)
   if key == "e" then editAsked = true end
 end)
 
-local function onKey(_, _, _, code)
-  if code == keyboard.keys.up then
+local function onKey(_, _, char, code)
+  if isEditing then
+    return
+  elseif pages:key(char, code) then
+    draw()
+  elseif code == keyboard.keys.up then
     logOffset = math.max(0, logOffset - 1)
   elseif code == keyboard.keys.down then
     logOffset = logOffset + 1
@@ -425,6 +503,11 @@ local function start()
   end
 
   recovery.listen("key_down", onKey)
+  recovery.listen("touch", function (_, _, x, y)
+    if pages:touch(math.floor(x), math.floor(y)) then draw() end
+  end)
+  statsData.start()
+  recovery.timer(60, recordWater, math.huge)
   recovery.timer(1, draw, math.huge)
   quitAsked, editAsked = false, false
 end
@@ -462,6 +545,8 @@ local function errorText(problem)
 end
 
 local function stop(reason)
+  pcall(statsData.stop)
+
   if reason == "quit" or reason == "restart" then
     return
   end

@@ -130,6 +130,11 @@ local function drawHeader(cv, ctx)
   local mode = " "..(modeLabels[ctx.mode] or tostring(ctx.mode):upper()).." "
   cv:put(2, 2, mode, C.bg, ctx.mode == "disabled" and C.na or C.neon)
 
+  -- The pages, after the mode
+  if ctx.tabs ~= nil then
+    ctx.tabs:draw(cv, 2 + textLength(mode) + 2, 2)
+  end
+
   if ctx.version ~= nil then
     local version = " v"..ctx.version.." "
     cv:put(W - textLength(version), 2, version, C.na, C.bg)
@@ -412,7 +417,11 @@ end
 
 local function drawFooter(cv, ctx)
   local y = cv.height
-  local keys = {{"↑↓", "log"}, {"E", "edit config"}, {"Q", "quit"}}
+  local keys = {{"←→", "pages"}, {"↑↓", "log"}, {"E", "edit config"}, {"Q", "quit"}}
+
+  if ctx.tab == "stats" then
+    keys = {{"←→", "pages"}, {"E", "edit config"}, {"Q", "quit"}}
+  end
   local column = 2
 
   for _, key in ipairs(keys) do
@@ -421,7 +430,7 @@ local function drawFooter(cv, ctx)
     column = column + textLength(key[1]) + textLength(key[2]) + 4
   end
 
-  local legend = {{CH.next, "next cycle", C.neon}, {CH.cross, "needs attention", C.red}}
+  local legend = (ctx.tab == nil or ctx.tab == "overview") and {{CH.next, "next cycle", C.neon}, {CH.cross, "needs attention", C.red}} or {}
   local text = 0
 
   for _, item in ipairs(legend) do
@@ -435,6 +444,164 @@ local function drawFooter(cv, ctx)
     cv:put(column + 2, y, item[2], C.na, C.bg)
     column = column + 2 + textLength(item[2]) + 3
   end
+end
+
+-- ---------- statistics page ----------
+
+local function signed(value)
+  if value == nil then
+    return "-", C.na
+  elseif value >= 0 then
+    return "+"..formatAmount(value), C.green
+  end
+
+  return "-"..formatAmount(-value), C.red
+end
+
+---Cycles: all time, last 24 hours, per hour, and each unit
+local function drawCycleTotals(cv, view, x, y, w, h)
+  local inner = w - 4
+  cardFrame(cv, x, y, w, h, "CYCLES", "all time", C.dim)
+
+  row(cv, x + 2, y + 1, inner, "All time", tostring(view.total), C.text, C.card)
+  row(cv, x + 2, y + 2, inner, "Last 24 hours", tostring(view.last24), C.neon, C.card)
+  row(cv, x + 2, y + 3, inner, "Per hour (24 h)", string.format("%.1f", view.rate24), C.neon, C.card)
+
+  local top = y + 5
+  cv:put(x + 2, top, "UNIT", C.na, C.card)
+  local heads = {"ALL", "24 H", "SHARE"}
+  local columns = {x + w - 26, x + w - 17, x + w - 8}
+
+  for i, head in ipairs(heads) do
+    cv:put(columns[i] + 6 - textLength(head), top, head, C.na, C.card)
+  end
+
+  for i, unit in ipairs(view.units) do
+    local rowY = top + i
+
+    if rowY > y + h - 2 then
+      break
+    end
+
+    cv:put(x + 2, rowY, unit.label, C.neon, C.card)
+    cv:put(x + 5, rowY, fit(unit.short, columns[1] - x - 6), C.text, C.card)
+
+    local share = view.total > 0 and (math.floor(unit.total / view.total * 100 + 0.5).."%") or "-"
+    local values = {tostring(unit.total), tostring(unit.last24), share}
+
+    for c, value in ipairs(values) do
+      cv:put(columns[c] + 6 - textLength(value), rowY, value, c == 3 and C.na or C.text, C.card)
+    end
+  end
+end
+
+---Each water over the last 24 hours: now, lowest, highest, change
+local function drawWaterHistory(cv, view, x, y, w, h)
+  cardFrame(cv, x, y, w, h, "WATER", "last 24 h", C.dim)
+
+  local columns = {x + w - 42, x + w - 32, x + w - 22, x + w - 12}
+  local heads = {"NOW", "LOWEST", "HIGHEST", "CHANGE"}
+
+  for i, head in ipairs(heads) do
+    cv:put(columns[i] + 8 - textLength(head), y + 1, head, C.na, C.card)
+  end
+
+  for i, water in ipairs(view.waters) do
+    local rowY = y + 1 + i
+
+    if rowY > y + h - 2 then
+      break
+    end
+
+    cv:put(x + 2, rowY, water.label, C.neon, C.card)
+    cv:put(x + 5, rowY, fit((water.water:gsub(" Water$", "")), columns[1] - x - 6), C.sub, C.card)
+
+    local change, changeColor = signed(water.change)
+    local values = {
+      {water.now and formatAmount(water.now) or "-", C.text},
+      {water.min and formatAmount(water.min) or "-", C.dim},
+      {water.max and formatAmount(water.max) or "-", C.dim},
+      {change, changeColor},
+    }
+
+    for c, value in ipairs(values) do
+      cv:put(columns[c] + 8 - textLength(value[1]), rowY, value[1], value[2], C.card)
+    end
+  end
+end
+
+local function drawUptime(cv, view, x, y, w)
+  local inner = w - 4
+  cardFrame(cv, x, y, w, 5, "UPTIME")
+  row(cv, x + 2, y + 1, inner, "This run", duration(view.uptime.session), C.text, C.card)
+  row(cv, x + 2, y + 2, inner, "All runs", duration(view.uptime.total), C.text, C.card)
+  row(cv, x + 2, y + 3, inner, "Counting since", view.since or "-", C.dim, C.card)
+  return 5
+end
+
+---Cycles per hour over the last 24 hours as columns, the hour under every third
+local function drawHourChart(cv, view, x, y, w, h)
+  cardFrame(cv, x, y, w, h, "CYCLES PER HOUR", "last 24 h", C.dim)
+
+  local hours = view.hours
+  local count = #hours
+  local chartTop, chartBottom = y + 1, y + h - 3
+  local rows = chartBottom - chartTop + 1
+  local columnWidth = math.max(2, math.floor((w - 6) / count))
+  local left = x + 3 + math.floor((w - 6 - columnWidth * count) / 2)
+  local highest = 0
+
+  for _, value in ipairs(hours) do
+    highest = math.max(highest, value or 0)
+  end
+
+  -- a faint baseline
+  cv:put(left, chartBottom + 1, string.rep(CH.h, columnWidth * count), C.track, C.card)
+
+  for i, value in ipairs(hours) do
+    local columnX = left + (i - 1) * columnWidth
+    local height = highest > 0 and math.floor((value or 0) / highest * rows + 0.5) or 0
+    local color = i == count and C.neon or C.sub
+
+    for r = 1, height do
+      cv:put(columnX, chartBottom - r + 1, string.rep("█", columnWidth - 1), color, C.card)
+    end
+
+    if (value or 0) > 0 and height < rows then
+      local text = tostring(value)
+
+      if textLength(text) <= columnWidth then
+        cv:put(columnX, chartBottom - height, text, C.na, C.card)
+      end
+    end
+
+    if (count - i) % 3 == 0 and view.hourLabels[i] then
+      cv:put(columnX, chartBottom + 2, view.hourLabels[i], i == count and C.neon or C.na, C.card)
+    end
+  end
+
+  if highest == 0 then
+    local text = "No cycles counted in the last 24 hours yet"
+    cv:put(x + math.floor((w - textLength(text)) / 2), chartTop + math.floor(rows / 2), text, C.na, C.card)
+  end
+end
+
+local function drawStatsPage(cv, ctx, bottom)
+  local view = ctx.statsView
+  local W = cv.width
+  local LW = neonScreen.leftWidth(W)
+  local RX = LW + 2
+  local RW = W - RX + 1
+  local chartHeight = math.max(8, math.floor((bottom - 2) * 0.42))
+  local topHeight = bottom - 2 - chartHeight
+
+  drawCycleTotals(cv, view, 1, 3, LW, topHeight)
+
+  local uptimeY = 3 + topHeight - 5
+  drawWaterHistory(cv, view, RX, 3, RW, topHeight - 5)
+  drawUptime(cv, view, RX, uptimeY, RW)
+
+  drawHourChart(cv, view, 1, 3 + topHeight, W, chartHeight)
 end
 
 ---Width of the left column
@@ -456,6 +623,16 @@ function neonScreen.render(width, height, ctx)
   local bottom = height - 1
 
   drawHeader(cv, ctx)
+
+  if ctx.tab == "stats" and ctx.statsView ~= nil then
+    drawStatsPage(cv, ctx, bottom)
+    drawFooter(cv, ctx)
+    return cv:lines(), ctx.logOffset or 0
+  elseif ctx.tab == "log" then
+    local logOffset = drawLog(cv, ctx, 1, 3, width, bottom - 2)
+    drawFooter(cv, ctx)
+    return cv:lines(), logOffset
+  end
 
   -- Left: the units, down to the bottom
   drawUnits(cv, ctx, 1, 3, LW, bottom - 2)

@@ -5,6 +5,8 @@ return {
   "event-log@1",
   "screen@1",
   "neon-ui@1",
+  "tabs@1",
+  "stats@1",
   "recovery@1.2",
   "installer@1",
   "autostart@1",

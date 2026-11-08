@@ -69,9 +69,11 @@ And there is also the possibility of auto update at startup.
 
 <kbd>E</kbd> - Edit `config.lua` while the program runs, see [Changing the config while it runs](#live-edit)
 
-<kbd>Arrow Up</kbd> - Scroll list up
+<kbd>Arrow Left</kbd> / <kbd>Arrow Right</kbd>, <kbd>Tab</kbd>, <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> or a touch on the tab - Switch pages
 
-<kbd>Arrow Down</kbd> - Scroll list down
+<kbd>Arrow Up</kbd> - Scroll the log up
+
+<kbd>Arrow Down</kbd> - Scroll the log down
 
 #### Interface
 
@@ -88,6 +90,16 @@ The screen fits its width to the screen's shape at 35 rows (made for a 5 x 3 scr
 - **Cycle**: time to the next cycle as a bar, the units running now and the units chosen for the next cycle.
 - **Control**: the amounts of the control mode and why the Quantity Controller chose the next unit.
 - **Statistics**: uptime, cycles seen and how many cycles each unit ran since the program started.
+
+The screen has three pages, shown next to the control mode on the second row:
+
+1. **Overview**: everything above.
+2. **Statistics**: kept in `stats.dat`, so they survive restarts and updates.
+   Cycles all time, in the last 24 hours and per hour, and per unit; each water's stock now, its lowest and highest in the last 24 hours
+   and how much it changed; uptime of this run and of all runs; and a chart of cycles per hour over the last 24 hours.
+3. **Log**: the event log over the whole screen.
+
+![Statistics](/docs/interface-stats.png)
 
 <a id="installation"></a>
 

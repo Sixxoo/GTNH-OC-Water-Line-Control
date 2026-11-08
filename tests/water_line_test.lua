@@ -44,9 +44,34 @@ end)
 
 t.test("the program runs, draws its screen and stops with Q, switching the plant off", function ()
   local event = require("event")
-  local snapshot = nil
+  local keys = require("keyboard").keys
+
+  -- A day of history in stats.dat, as earlier runs would leave it
+  os.remove("stats.dat")
+  local seed = require("addons.core").load("stats", {filePath = "stats.dat"})
+  seed.start()
+  local pattern = {3, 4, 2, 5, 3, 0, 1, 4, 5, 3, 2, 4, 3, 5, 4, 2, 3, 4, 5, 3, 4, 2, 3, 1}
+  for hour = 1, 24 do
+    for _ = 1, pattern[hour] do
+      seed.add("cycles")
+      seed.add(hour % 3 == 0 and "cycles.t3" or "cycles.t2")
+      if hour % 4 == 0 then seed.add("cycles.t1") end
+    end
+    seed.record("water.t1", 30000000 + hour * 70000)
+    seed.record("water.t2", 200000 + hour * 30000)
+    seed.record("water.t3", 900000 - hour * 30000)
+    oc.advance(3600)
+  end
+  seed.stop()
+
+  local snapshot, statsPage, logPage = nil, nil, nil
   event.timer(60, function () snapshot = display.lines() end)
-  event.timer(62, function ()
+  event.timer(61, function () event.push("key_down", "keyboard", 0, keys.right) end)
+  event.timer(63, function () statsPage = display.lines() end)
+  event.timer(64, function () event.push("key_down", "keyboard", string.byte("3"), 4) end)
+  event.timer(66, function () logPage = display.lines() end)
+  event.timer(67, function () event.push("key_down", "keyboard", string.byte("1"), 2) end)
+  event.timer(68, function ()
     event.push("key_down", "keyboard", string.byte("q"), 16)
     event.push("key_up", "keyboard", string.byte("q"), 16)
   end)
@@ -67,6 +92,14 @@ t.test("the program runs, draws its screen and stops with Q, switching the plant
   t.equal(plant.allowed, false, "plant switched off")
   t.equal(#oc.log, 0, "no errors in listeners: "..table.concat(oc.log, "; "))
   t.contains(read("logs.log") or "", "Program started")
+
+  t.snapshot("stats", statsPage)
+  t.snapshot("log", logPage)
+  local statsText = table.concat(statsPage, "\n"):gsub("&&?0x%x+;", "")
+  t.contains(statsText, "CYCLES PER HOUR")
+  t.contains(statsText, "All time")
+  t.contains(table.concat(logPage, "\n"):gsub("&&?0x%x+;", ""), "EVENT LOG")
+  os.remove("stats.dat")
 end)
 
 t.test("a mistake in config.lua: error screen with a countdown, Q stops", function ()
