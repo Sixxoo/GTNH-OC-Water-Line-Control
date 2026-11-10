@@ -29,7 +29,11 @@ They are listed in [`addons.lua`](addons.lua).
 | [`event-log`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/event-log) | 1.0 | The log on the screen (coloured, repeats folded) and `logs.log` |
 | [`screen`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/screen) | 1.0 | Draws the screen without flicker and fits the resolution to the monitor |
 | [`neon-ui`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/neon-ui) | 1.0 | The neon look: cards, bars, header and footer |
-| [`recovery`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/recovery) | 1.2 | Restarts after an error with a countdown, switches the plant off after 5 minutes of errors |
+| [`tabs`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/tabs) | 1.0 | The pages: overview, statistics, log |
+| [`stats`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/stats) | 1.0 | Statistics kept in `stats.dat` across restarts |
+| [`recovery`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/recovery) | 1.3 | Restarts after an error with a countdown; after 5 minutes of errors the plant goes off and it keeps trying every minute |
+| [`wiring-check`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/wiring-check) | 1.0 | At start, names a missing transposer or ME interface and an unused one that could replace it |
+| [`power`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/power) | 1.0 | Logs when the computer went off without stopping the program, and when its energy runs low |
 | [`installer`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/installer) | 1.0 | Install, update, `update-all` and `uninstall` |
 | [`autostart`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/autostart) | 1.0 | Starts the program when the computer boots, wake on redstone |
 
@@ -182,7 +186,16 @@ The `logger` block is gone: the time zone is asked by the installer, and `logLev
 If an error stops the program, for example a unit that can't be read while its chunk reloads, or a mistake in `config.lua`,
 it shows the error, waits 30 seconds and starts again. The plant keeps running in the meantime, and units that need attention stay off.
 The screen counts down to the next try. For a mistake in `config.lua`, press E to fix it: the program tries it as soon as you close the editor.
-If it still fails after 5 minutes, it switches the plant off and stops: fix the problem, then run `main`.
+If it still fails after 5 minutes, it switches the plant off and keeps trying every minute; once it works again it switches
+the plant back on by itself. So when the machines' chunks unload while you are away, the plant waits safely and goes on when you are back.
+
+At start it checks that every transposer and ME interface in `config.lua` is on the network. For a missing one the screen says which,
+and names an unused one of the same type, e.g. after an adapter was replaced and got a new address.
+"No such component" means a machine, adapter or ME interface left the network while running: its chunk unloaded, a cable broke
+or an MFU lost its link. Keep the computer and everything it controls in chunks that are loaded together.
+
+If the computer itself went off without the program stopping (no energy, a crash, its chunk unloaded), the log says so at the next start,
+with the time and the energy it had then.
 
 Press Q to stop the program at any time. This switches the plant off too.
 
@@ -663,7 +676,7 @@ discord = { -- Messages to a Discord channel through a webhook. Needs an interne
   needsAttention = true, -- A unit needs attention, and is back in use
   plantStopped = true, -- The Water Purification Plant stopped, and runs again
   unitDidNotStart = true, -- A unit was chosen for 2 cycles in a row but didn't start, and starts again
-  errors = true, -- The program had an error, runs again, or stopped after 5 minutes of errors
+  errors = true, -- The program had an error, runs again, or switched the plant off after 5 minutes of errors
   started = true -- The program started
 },
 ```
@@ -674,7 +687,7 @@ discord = { -- Messages to a Discord channel through a webhook. Needs an interne
 | Water Purification Plant stopped / runs again | red, pings / green | The plant stopped (switched off, or no power), and runs again. Not when you stop the program with Q. |
 | T2 didn't start / starts again | red, pings / green | The Quantity Controller chose a unit for 2 cycles in a row, but GregTech didn't start it: usually a missing input. |
 | Error, starting again / Running again after an error | red, pings / green | The program had an error and starts again in 30 s, and when it runs again. |
-| Stopped after 5 minutes of errors | red, pings | The program switched the plant off and stopped. |
+| Plant switched off after 5 minutes of errors | red, pings | The plant is off; the program keeps trying every minute and switches it on when it works. |
 | Water Line Control started | gray | The program started, with the mode and the units. |
 
 With `reminderHours`, a reminder follows while a unit still needs attention, a unit still doesn't start, or the plant is still stopped.

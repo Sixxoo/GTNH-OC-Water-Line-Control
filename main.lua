@@ -19,7 +19,11 @@ local cfg = addons.load("config")
 local clock = addons.load("clock")
 local screen = addons.load("screen")
 local ui = addons.load("neon-ui")
-local recovery = addons.load("recovery")
+-- With nobody watching (e.g. the machines' chunks unloaded while you are away) the program keeps
+-- the plant off after 5 minutes of errors but goes on trying every minute, and runs again by itself
+local recovery = addons.load("recovery", {keepTrying = true, keepTryingSeconds = 60})
+local wiring = addons.load("wiring-check")
+local power = addons.load("power")
 local installer = addons.load("installer")
 local tabs = addons.load("tabs")
 local statsData = addons.load("stats")
@@ -38,6 +42,21 @@ local program = cfg.read("program.lua") or {name = "Water Line Control", version
 
 ---@type table Running config, checked
 local config = nil
+
+---What "no such component" usually means here
+local function explain(problem)
+  problem = tostring(problem)
+
+  if problem:find("no such component") and not problem:find("left the network") then
+    problem = problem.."\nA machine, adapter or ME interface left the network: its chunk unloaded (chunk loading),"..
+      " a cable broke or an MFU lost its link. The program goes on when it is back."
+  end
+
+  return problem
+end
+
+---Since when runs keep failing (nil while it works), for the error screen
+local failingSince, failingFor = nil, 0
 ---@type table Controllers t1..t8 of the running config
 local controllers = {}
 ---@type table
@@ -384,7 +403,7 @@ local function draw()
 end
 
 ---Screen while waiting to start again after an error
-local function drawError(problem, left, attempt, giveUpIn)
+local function drawError(problem, left, attempt, giveUpIn, isSafe)
   local width, height = screen.size()
   local C = ui.colors
   local cv = ui.canvas(width, height)
@@ -396,7 +415,7 @@ local function drawError(problem, left, attempt, giveUpIn)
   -- The error over up to 4 rows: its own lines, long ones wrapped
   local y = 4
 
-  for line in (tostring(problem).."\n"):gmatch("(.-)\n") do
+  for line in (explain(problem).."\n"):gmatch("(.-)\n") do
     local chars, first = ui.split(line), 1
 
     repeat
@@ -407,7 +426,12 @@ local function drawError(problem, left, attempt, giveUpIn)
   end
 
   ui.row(cv, 3, 9, width - 4, "Starting again in", left.." s", C.text, C.card)
-  ui.row(cv, 3, 10, width - 4, "Gives up in (plant off)", ui.duration(giveUpIn), C.amber, C.card)
+
+  if isSafe then
+    ui.row(cv, 3, 10, width - 4, "Plant switched off, trying every minute", ui.duration(failingFor), C.red, C.card)
+  else
+    ui.row(cv, 3, 10, width - 4, "Plant off in", ui.duration(giveUpIn), C.amber, C.card)
+  end
   ui.log(cv, 1, 12, width, height - 12, "EVENT LOG", log.lines(), 0)
   ui.footer(cv, {keys = {{"E", "edit config"}, {"Q", "stop now (plant off)"}}})
   screen.show(cv:lines())
@@ -444,6 +468,13 @@ end
 local function start()
   local newConfig, newRaw = loadConfig()
   config, runningRaw = newConfig, newRaw
+
+  -- Every transposer and ME interface of the config is there; else say which and what could replace it
+  local wired = wiring.check(schema.wiring(config))
+
+  if not wired.ok then
+    error(table.concat(wiring.problems(wired), "\n"), 0)
+  end
   addons.load("event-log", {filePath = "logs.log", tagColors = log.settings.tagColors,
     screenLevel = config.logLevel, fileLevel = config.logLevel})
   discord.configure(config.discord)
@@ -541,7 +572,7 @@ local function step()
 end
 
 local function errorText(problem)
-  return (tostring(problem):gsub("\nstack traceback:.*$", ""):gsub("%s*\n%s*", " "))
+  return (explain(problem):gsub("\nstack traceback:.*$", ""):gsub("%s*\n%s*", " "))
 end
 
 local function stop(reason)
@@ -562,12 +593,14 @@ local function safe(problem)
   end
 
   if problem ~= nil then
-    discord.alert("gaveUp", "errors", "Stopped after 5 minutes of errors",
-      "The Water Purification Plant is switched off. Fix the problem, then run main. Last error: "..errorText(problem))
+    log.error("Plant switched off after 5 minutes of errors, trying again every minute")
+    discord.alert("gaveUp", "errors", "Plant switched off after 5 minutes of errors",
+      "The Water Purification Plant is switched off; the program tries again every minute and switches it on"..
+      " when it works. Last error: "..errorText(problem))
   end
 end
 
-local function waiting(problem, left, attempt, giveUpIn)
+local function waiting(problem, left, attempt, giveUpIn, isSafe)
   if editAsked then
     isEditing = true
     screen.close()
@@ -577,7 +610,9 @@ local function waiting(problem, left, attempt, giveUpIn)
     quitAsked, editAsked = false, false
   end
 
-  pcall(drawError, problem, left, attempt, giveUpIn)
+  failingSince = failingSince or computer.uptime()
+  failingFor = computer.uptime() - failingSince
+  pcall(drawError, problem, left, attempt, giveUpIn, isSafe)
 
   if quitAsked then
     return "quit"
@@ -585,6 +620,11 @@ local function waiting(problem, left, attempt, giveUpIn)
 end
 
 local function started()
+  if failingSince ~= nil then
+    log.info("Running again after "..ui.duration(computer.uptime() - failingSince).." of errors")
+  end
+
+  failingSince = nil
   discord.clear("error", "errors", "Running again after an error", "")
 end
 
@@ -592,6 +632,7 @@ end
 
 if not checkUpdate() then
   log.start()
+  power.start()   -- logs when the computer went off without stopping the program, and when its energy runs low
   screen.open()
   local result, problem = recovery.run({start = start, step = step, stop = stop, safe = safe,
     waiting = waiting, started = started})
@@ -600,6 +641,7 @@ if not checkUpdate() then
     pcall(lineController.disable, lineController)   -- Stopping the program switches the plant off
   end
 
+  power.stop()
   discord.finish(10)
   discord.stop()
   log.stop()

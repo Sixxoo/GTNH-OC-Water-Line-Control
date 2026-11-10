@@ -138,4 +138,37 @@ function schema.build(config)
   return controllers, quantity
 end
 
+---Components the config names, for the wiring check: transposers and ME interfaces of enabled units
+---@return table[] {{name, type, address}}
+function schema.wiring(config)
+  local list = {}
+
+  for tier = 1, 8 do
+    local unit = (config.controllers or {})["t"..tier]
+
+    if type(unit) == "table" and unit.enable then
+      local keys = {}
+      for key in pairs(unit) do keys[#keys + 1] = key end
+      table.sort(keys)
+
+      for _, key in ipairs(keys) do
+        local value = unit[key]
+
+        if type(value) == "string" and key:match("Address$") then
+          list[#list + 1] = {name = "[T"..tier.."] "..key, address = value,
+            type = key:lower():find("meinterface") and "me_interface" or "transposer"}
+        end
+      end
+    end
+  end
+
+  local qc = config.quantityController
+
+  if type(qc) == "table" and qc.controlMode ~= "disabled" and type(qc.meInterfaceAddress) == "string" then
+    list[#list + 1] = {name = "[QC] meInterfaceAddress", type = "me_interface", address = qc.meInterfaceAddress}
+  end
+
+  return list
+end
+
 return schema

@@ -124,5 +124,33 @@ t.test("a mistake in config.lua: error screen with a countdown, Q stops", functi
   t.contains(text, "Starting again in")
 end)
 
+t.test("a component gone for 20 minutes: plant off after 5, keeps trying, runs again by itself", function ()
+  local event = require("event")
+  local component = require("component")
+  local address = "0604d547-0b75-4990-bd55-4ac86f1df51d"
+  local me = component.proxy(address)
+  oc.removeComponent(address)
+
+  local began, waitingScreen, safeScreen = oc.now(), nil, nil
+  event.timer(60, function () waitingScreen = display.lines() end)
+  event.timer(8 * 60, function () safeScreen = display.lines() end)
+  event.timer(20 * 60, function () oc.addComponent("me_interface", me, address) end)
+  event.timer(23 * 60, function () event.push("key_down", "keyboard", string.byte("q"), 16) end)
+
+  local isOk, problem = pcall(assert(loadfile("main.lua")))
+  t.truthy(isOk, tostring(problem))
+
+  local function text(lines) return table.concat(lines, "\n"):gsub("&&?0x%x+;", "") end
+  t.snapshot("waiting", waitingScreen)
+  t.snapshot("safe", safeScreen)
+  t.contains(text(waitingScreen), "me_interface 0604d547) is missing")
+  t.contains(text(waitingScreen), "Plant off in")
+  t.contains(text(safeScreen), "Plant switched off, trying every minute")
+  local logText = read("logs.log") or ""
+  t.contains(logText, "Plant switched off after 5 minutes of errors")
+  t.contains(logText, "Running again after")
+  t.truthy(oc.now() - began >= 23 * 60)
+end)
+
 os.remove("logs.log")
 return t.finish()

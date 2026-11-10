@@ -12,7 +12,7 @@ local config = {
     needsAttention = true, -- A unit needs attention, and is back in use
     plantStopped = true, -- The Water Purification Plant stopped, and runs again
     unitDidNotStart = true, -- A unit was chosen for 2 cycles in a row but didn't start, and starts again
-    errors = true, -- The program had an error, runs again, or stopped after 5 minutes of errors
+    errors = true, -- The program had an error, runs again, or switched the plant off after 5 minutes of errors
     started = true -- The program started
   },
 

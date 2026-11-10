@@ -66,3 +66,5 @@ addons/
 stats.dat
 stats.dat.tmp
 craft-history.log
+.power-seen
+history.dat

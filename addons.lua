@@ -7,7 +7,9 @@ return {
   "neon-ui@1",
   "tabs@1",
   "stats@1",
-  "recovery@1.2",
+  "recovery@1.3",
+  "wiring-check@1",
+  "power@1",
   "installer@1",
   "autostart@1",
 }
