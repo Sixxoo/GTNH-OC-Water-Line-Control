@@ -332,6 +332,13 @@ It is also necessary to specify transposer addresses in
 the fields `hydrochloricAcidTransposerAddress` and `sodiumHydroxideTransposerAddress`, 
 they are respectively located above the input hatch for Hydrochloric Acid next to the 
 tank and above the input bus for Sodium Hydroxide next to the interface.
+The tank and the ME interface (set to keep Sodium Hydroxide Dust in its slots) go on any side but the top.
+Both must hold some when the program starts: it looks for them then.
+
+The unit starts each cycle at a random pH between 4.5 and 9.5 and succeeds at 7.00 &plusmn; 0.05. Every second it uses up its input bus
+and hatch: each Sodium Hydroxide Dust raises the pH by 0.01, every 10 L of Hydrochloric Acid lowers it by 0.01. The program reads the pH,
+adds what brings it to 7 (dust 64 at a time, so an ME interface slot can refill), waits for the unit to use it, reads again and repeats
+until the pH is within 0.02 of 7. With nothing left to add, the unit is marked "Needs attention".
 
 #### T4 Config part
 
