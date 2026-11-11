@@ -6,6 +6,8 @@ return {
   "screen@1",
   "neon-ui@1",
   "tabs@1",
+  "touch@1",
+  "windows@1",
   "stats@1",
   "recovery@1.3",
   "wiring-check@1",

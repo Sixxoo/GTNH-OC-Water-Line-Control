@@ -68,6 +68,11 @@ t.test("the program runs, draws its screen and stops with Q, switching the plant
   event.timer(60, function () snapshot = display.lines() end)
   event.timer(61, function () event.push("key_down", "keyboard", 0, keys.right) end)
   event.timer(63, function () statsPage = display.lines() end)
+  local confirmPage, resetPage
+  event.timer(63.2, function () event.push("key_down", "keyboard", string.byte("r"), 19) end)
+  event.timer(63.4, function () confirmPage = display.lines() end)
+  event.timer(63.6, function () event.push("key_down", "keyboard", string.byte("y"), keys.y) end)
+  event.timer(63.8, function () resetPage = display.lines() end)
   event.timer(64, function () event.push("key_down", "keyboard", string.byte("3"), 4) end)
   event.timer(66, function () logPage = display.lines() end)
   event.timer(67, function () event.push("key_down", "keyboard", string.byte("1"), 2) end)
@@ -99,6 +104,14 @@ t.test("the program runs, draws its screen and stops with Q, switching the plant
   t.contains(statsText, "CYCLES PER HOUR")
   t.contains(statsText, "All time")
   t.contains(table.concat(logPage, "\n"):gsub("&&?0x%x+;", ""), "EVENT LOG")
+  t.snapshot("reset-confirm", confirmPage)
+  t.snapshot("reset-done", resetPage)
+  local function plain(lines) return (table.concat(lines, "\n"):gsub("&&?0x%x+;", "")) end
+  t.contains(plain(statsPage), "RESET STATISTICS")
+  t.contains(plain(confirmPage), "RESET STATISTICS?")
+  t.contains(plain(confirmPage), "can't be undone")
+  t.truthy(plain(resetPage):find("All time%s+0"), "all-time cycles are 0 after the reset")
+  t.contains(read("logs.log") or "", "Statistics reset")
   os.remove("stats.dat")
 end)
 

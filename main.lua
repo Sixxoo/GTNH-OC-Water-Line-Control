@@ -26,6 +26,8 @@ local wiring = addons.load("wiring-check")
 local power = addons.load("power")
 local installer = addons.load("installer")
 local tabs = addons.load("tabs")
+local touch = addons.load("touch")
+local windows = addons.load("windows")
 local statsData = addons.load("stats")
 local log = addons.load("event-log", {
   filePath = "logs.log",
@@ -84,6 +86,10 @@ stats.onCycle = function (running)
     statsData.add("cycles."..name:lower())
   end
 end
+
+---Touch buttons of the screen and pop-up windows over it
+local buttons = touch.new()
+local popups = windows.new()
 
 ---Pages of the screen
 local pages = tabs.new({
@@ -323,7 +329,7 @@ local function statsView()
     last24 = statsData.last("cycles", 24),
     rate24 = statsData.rate("cycles", 24),
     units = {}, waters = {},
-    hours = statsData.hours("cycles", 24),
+    hours = {},
     hourLabels = {},
     uptime = statsData.uptime(),
   }
@@ -332,6 +338,11 @@ local function statsView()
   view.since = since and clock.format("%d.%m.%Y %H:%M", since) or nil
 
   local hour = math.floor(clock.now() / 3600)
+  local perHour = statsData.hours("cycles", 24)
+
+  for i = 1, 24 do
+    view.hours[i] = perHour[i] or 0   -- nothing counted yet (e.g. just after a reset) is 0
+  end
 
   for i = 1, 24 do
     view.hourLabels[i] = clock.format("%H", (hour - 24 + i) * 3600)
@@ -394,6 +405,8 @@ local function draw()
     logOffset = logOffset,
     tab = pages:current(),
     tabs = pages,
+    buttons = buttons,
+    overlay = function (cv) popups:draw(cv) end,
     statsView = pages:current() == "stats" and statsView() or nil,
     stats = {uptime = computer.uptime() - stats.startedAt, cycles = stats.cycles, unitCycles = stats.unitCycles},
   })
@@ -451,9 +464,34 @@ local waitingKeys = event.listen("key_down", function (_, _, char)
   if key == "e" then editAsked = true end
 end)
 
+---Ask, then clear all statistics
+local function askReset()
+  if popups:isOpen() then
+    return
+  end
+
+  popups:confirm("RESET STATISTICS?", {
+    "All cycles, water history and uptime are cleared.",
+    "This can't be undone.",
+  }, function (yes)
+    if yes then
+      statsData.reset()
+      pcall(statsData.save)
+      stats.cycles, stats.unitCycles, stats.startedAt = 0, {}, computer.uptime()
+      log.info("Statistics reset")
+    end
+  end)
+end
+
 local function onKey(_, _, char, code)
   if isEditing then
     return
+  elseif popups:isOpen() then
+    popups:key(char, code)
+    draw()
+  elseif pages:current() == "stats" and (char == 114 or char == 82) then   -- r / R
+    askReset()
+    draw()
   elseif pages:key(char, code) then
     draw()
   elseif code == keyboard.keys.up then
@@ -535,7 +573,16 @@ local function start()
 
   recovery.listen("key_down", onKey)
   recovery.listen("touch", function (_, _, x, y)
-    if pages:touch(math.floor(x), math.floor(y)) then draw() end
+    x, y = math.floor(x), math.floor(y)
+
+    if popups:touch(x, y) then
+      draw()
+    elseif pages:current() == "stats" and buttons:press(x, y) == "reset" then
+      askReset()
+      draw()
+    elseif pages:touch(x, y) then
+      draw()
+    end
   end)
   statsData.start()
   recovery.timer(60, recordWater, math.huge)

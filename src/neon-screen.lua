@@ -419,7 +419,7 @@ local function drawFooter(cv, ctx)
   local keys = {{"←→", "pages"}, {"↑↓", "log"}, {"E", "edit config"}, {"Q", "quit"}}
 
   if ctx.tab == "stats" then
-    keys = {{"←→", "pages"}, {"E", "edit config"}, {"Q", "quit"}}
+    keys = {{"←→", "pages"}, {"R", "reset statistics"}, {"E", "edit config"}, {"Q", "quit"}}
   end
   local column = 2
 
@@ -458,9 +458,16 @@ local function signed(value)
 end
 
 ---Cycles: all time, last 24 hours, per hour, and each unit
-local function drawCycleTotals(cv, view, x, y, w, h)
+local function drawCycleTotals(cv, view, x, y, w, h, ctx)
   local inner = w - 4
   cardFrame(cv, x, y, w, h, "CYCLES", "all time", C.dim)
+
+  -- Reset: R or a touch, asks first
+  if ctx and ctx.buttons then
+    local label = " R  RESET STATISTICS "
+    ctx.buttons:clear()
+    ctx.buttons:button(cv, x + w - 2 - textLength(label), y + h - 2, "R  RESET STATISTICS", "reset", {color = C.red})
+  end
 
   row(cv, x + 2, y + 1, inner, "All time", tostring(view.total), C.text, C.card)
   row(cv, x + 2, y + 2, inner, "Last 24 hours", tostring(view.last24), C.neon, C.card)
@@ -542,10 +549,25 @@ end
 local function drawHourChart(cv, view, x, y, w, h)
   cardFrame(cv, x, y, w, h, "CYCLES PER HOUR", "last 24 h", C.dim)
 
+  -- Inside the frame, bottom up: hour labels, baseline, columns, and one row above the tallest column
+  -- for its number. The columns scale to the rows that are left, so the whole chart always fits
   local hours = view.hours
   local count = #hours
-  local chartTop, chartBottom = y + 1, y + h - 3
-  local rows = chartBottom - chartTop + 1
+  local insideTop, insideBottom = y + 1, y + h - 2
+  local labelRow = insideBottom
+  local baseline = labelRow - 1
+  local columnBottom = baseline - 1
+  local rows = columnBottom - insideTop          -- one row kept free for the numbers
+  local showNumbers = rows >= 3
+
+  if not showNumbers then
+    rows = columnBottom - insideTop + 1
+  end
+
+  if rows < 1 or count == 0 then
+    return
+  end
+
   local columnWidth = math.max(2, math.floor((w - 6) / count))
   local left = x + 3 + math.floor((w - 6 - columnWidth * count) / 2)
   local highest = 0
@@ -554,34 +576,38 @@ local function drawHourChart(cv, view, x, y, w, h)
     highest = math.max(highest, value or 0)
   end
 
-  -- a faint baseline
-  cv:put(left, chartBottom + 1, string.rep(CH.h, columnWidth * count), C.track, C.card)
+  cv:put(left, baseline, string.rep(CH.h, columnWidth * count), C.track, C.card)
 
   for i, value in ipairs(hours) do
     local columnX = left + (i - 1) * columnWidth
-    local height = highest > 0 and math.floor((value or 0) / highest * rows + 0.5) or 0
+    local height = 0
+
+    if highest > 0 and (value or 0) > 0 then
+      height = math.max(1, math.min(rows, math.floor(value / highest * rows + 0.5)))
+    end
+
     local color = i == count and C.neon or C.sub
 
     for r = 1, height do
-      cv:put(columnX, chartBottom - r + 1, string.rep("█", columnWidth - 1), color, C.card)
+      cv:put(columnX, columnBottom - r + 1, string.rep("█", columnWidth - 1), color, C.card)
     end
 
-    if (value or 0) > 0 and height < rows then
+    if showNumbers and (value or 0) > 0 then
       local text = tostring(value)
 
       if textLength(text) <= columnWidth then
-        cv:put(columnX, chartBottom - height, text, C.na, C.card)
+        cv:put(columnX, columnBottom - height, text, C.na, C.card)
       end
     end
 
     if (count - i) % 3 == 0 and view.hourLabels[i] then
-      cv:put(columnX, chartBottom + 2, view.hourLabels[i], i == count and C.neon or C.na, C.card)
+      cv:put(columnX, labelRow, view.hourLabels[i], i == count and C.neon or C.na, C.card)
     end
   end
 
   if highest == 0 then
     local text = "No cycles counted in the last 24 hours yet"
-    cv:put(x + math.floor((w - textLength(text)) / 2), chartTop + math.floor(rows / 2), text, C.na, C.card)
+    cv:put(x + math.floor((w - textLength(text)) / 2), insideTop + math.floor((columnBottom - insideTop) / 2), text, C.na, C.card)
   end
 end
 
@@ -594,7 +620,7 @@ local function drawStatsPage(cv, ctx, bottom)
   local chartHeight = math.max(8, math.floor((bottom - 2) * 0.42))
   local topHeight = bottom - 2 - chartHeight
 
-  drawCycleTotals(cv, view, 1, 3, LW, topHeight)
+  drawCycleTotals(cv, view, 1, 3, LW, topHeight, ctx)
 
   local uptimeY = 3 + topHeight - 5
   drawWaterHistory(cv, view, RX, 3, RW, topHeight - 5)
@@ -626,10 +652,12 @@ function neonScreen.render(width, height, ctx)
   if ctx.tab == "stats" and ctx.statsView ~= nil then
     drawStatsPage(cv, ctx, bottom)
     drawFooter(cv, ctx)
+    if ctx.overlay then ctx.overlay(cv) end
     return cv:lines(), ctx.logOffset or 0
   elseif ctx.tab == "log" then
     local logOffset = drawLog(cv, ctx, 1, 3, width, bottom - 2)
     drawFooter(cv, ctx)
+    if ctx.overlay then ctx.overlay(cv) end
     return cv:lines(), logOffset
   end
 
@@ -646,6 +674,7 @@ function neonScreen.render(width, height, ctx)
   local logOffset = drawLog(cv, ctx, RX, bottom - logHeight + 1, RW, logHeight)
 
   drawFooter(cv, ctx)
+  if ctx.overlay then ctx.overlay(cv) end
 
   return cv:lines(), logOffset
 end

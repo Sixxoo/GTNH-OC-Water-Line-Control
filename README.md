@@ -30,6 +30,8 @@ They are listed in [`addons.lua`](addons.lua).
 | [`screen`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/screen) | 1.0 | Draws the screen without flicker and fits the resolution to the monitor |
 | [`neon-ui`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/neon-ui) | 1.0 | The neon look: cards, bars, header and footer |
 | [`tabs`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/tabs) | 1.0 | The pages: overview, statistics, log |
+| [`touch`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/touch) | 1.0 | The touch button on the statistics page |
+| [`windows`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/windows) | 1.0 | The question before the statistics are reset |
 | [`stats`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/stats) | 1.0 | Statistics kept in `stats.dat` across restarts |
 | [`recovery`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/recovery) | 1.3 | Restarts after an error with a countdown; after 5 minutes of errors the plant goes off and it keeps trying every minute |
 | [`wiring-check`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/wiring-check) | 1.0 | At start, names a missing transposer or ME interface and an unused one that could replace it |
@@ -100,6 +102,7 @@ The screen has three pages, shown next to the control mode on the second row:
 2. **Statistics**: kept in `stats.dat`, so they survive restarts and updates.
    Cycles all time, in the last 24 hours and per hour, and per unit; each water's stock now, its lowest and highest in the last 24 hours
    and how much it changed; uptime of this run and of all runs; and a chart of cycles per hour over the last 24 hours.
+   <kbd>R</kbd> or a touch on **RESET STATISTICS** clears them all (it asks first: <kbd>Y</kbd> / <kbd>N</kbd> or a touch).
 3. **Log**: the event log over the whole screen.
 
 ![Statistics](/docs/interface-stats.png)
