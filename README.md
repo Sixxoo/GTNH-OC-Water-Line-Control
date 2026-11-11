@@ -36,7 +36,7 @@ They are listed in [`addons.lua`](addons.lua).
 | [`recovery`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/recovery) | 1.3 | Restarts after an error with a countdown; after 5 minutes of errors the plant goes off and it keeps trying every minute |
 | [`wiring-check`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/wiring-check) | 1.0 | At start, names a missing transposer or ME interface and an unused one that could replace it |
 | [`power`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/power) | 1.0 | Logs when the computer went off without stopping the program, and when its energy runs low |
-| [`installer`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/installer) | 1.0 | Install, update, `update-all` and `uninstall` |
+| [`installer`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/installer) | 1.1 | Install, update (showing each step), `update-all` and `uninstall` |
 | [`autostart`](https://github.com/Sixxoo/GTNH-OC-Addons/tree/main/addons/autostart) | 1.0 | Starts the program when the computer boots, wake on redstone |
 
 > [!CAUTION]
@@ -164,6 +164,7 @@ Keep the clock away from the screen: a redstone pulse turns an OpenComputers scr
 #### Updating and removing
 
 With `enableAutoUpdate = true`, the program checks for a new version when it starts and asks before installing it.
+After <kbd>Y</kbd> it shows each step (download with its size, unpacking, checking the files, keeping your settings) and then starts the new version.
 `update-all` checks every program installed with the addons installer and updates them after one yes.
 Both keep your values in the new `config.lua`, as described above.
 

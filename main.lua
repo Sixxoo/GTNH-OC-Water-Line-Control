@@ -125,9 +125,11 @@ local function checkUpdate()
   term.write("\n")
 
   if char == nil or string.char(char):lower() ~= "y" then
+    term.write("Not now. Starting "..program.version.."...\n")
     return false
   end
 
+  -- The installer shows each step (download with its size, unpacking, checking, settings)
   local isOk, lines = installer.install(program, latest.version)
 
   for _, line in ipairs(lines) do
@@ -135,7 +137,11 @@ local function checkUpdate()
   end
 
   if isOk then
-    term.write("Updated. Start it again with: main\n")
+    term.write("Updated to "..latest.version..". Starting it...\n")
+    os.sleep(2)
+  else
+    term.write("The update failed, starting "..program.version.." instead.\n")
+    os.sleep(3)
   end
 
   return isOk
@@ -702,5 +708,7 @@ if not checkUpdate() then
     print("Water Line Control stopped. The plant is switched off. Start it again with: main")
   end
 else
+  -- Updated: start the new version right away
   event.cancel(waitingKeys)
+  shell.execute("main")
 end
