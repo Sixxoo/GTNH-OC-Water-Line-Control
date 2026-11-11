@@ -1,5 +1,6 @@
 local sides = require("sides")
 local event = require("event")
+local computer = require("computer")
 local term = require("term")
 
 local classBuilder = require("lib.class-builder.index")
@@ -120,8 +121,20 @@ function t4controller:initStateMachine()
     end
   })
 
+  -- The unit starts each cycle at a random pH between 4.5 and 9.5 and succeeds at 7.00 +- 0.05.
+  -- Every second it uses up what is in its input bus and hatch: each Sodium Hydroxide Dust raises the pH
+  -- by 0.01, each 10 L of Hydrochloric Acid lowers it by 0.01. The program reads the pH, adds what
+  -- brings it to 7, waits until the unit used it up and reads again, until the pH is within 0.02
   self.stateMachine:createState("work", "Work", {
+    onInit = function ()
+      self.waitUntil = 0
+      self.doses = 0
+    end,
     onUpdate = function ()
+      if computer.uptime() < self.waitUntil then
+        return
+      end
+
       local phValue = self.gtSensorParser:getNumber(4)
 
       if phValue == nil then
@@ -129,20 +142,29 @@ function t4controller:initStateMachine()
       end
 
       local diffPh = 7 - phValue
-      local count = math.floor(math.abs(diffPh / 0.01))
+      local count = math.floor(math.abs(diffPh) / 0.01 + 0.5)
 
-      if count == 0 then
+      if math.abs(diffPh) <= 0.02 or count == 0 then
+        event.push("log_debug", "[T4] pH "..phValue.." after "..self.doses.." doses")
         self.stateMachine:setState("waitEnd")
         return
       end
 
+      local added
+
       if diffPh > 0 then
-        self:putSodiumHydroxide(count)
+        added = self:putSodiumHydroxide(count)
       else
-        self:putHydrochloricAcid(count)
+        added = self:putHydrochloricAcid(count)
       end
 
-      self.stateMachine:setState("waitEnd")
+      if added == false then
+        self.stateMachine:setState("waitEnd")
+        return
+      end
+
+      self.doses = self.doses + 1
+      self.waitUntil = computer.uptime() + 2   -- the unit takes it in within a second; then read again
     end
   })
 
@@ -162,7 +184,7 @@ end
 ---@param fluidNames string[]
 ---@private
 function t4controller:findTransposerFluid(proxy, fluidNames)
-  local result, skipped = componentDiscover.transposerFluidStoragesByNames(proxy, fluidNames, {sides.up})
+  local result, skipped = componentDiscover.transposerFluidStoragesByNames(proxy, fluidNames, {sides.up, sides.bottom})
 
   if #skipped ~= 0 then
     error("[T4] Can't find liquid: "..table.concat(skipped, ", "))
@@ -178,7 +200,7 @@ end
 ---@param itemLabels string[]
 ---@private
 function t4controller:findTransposerItem(proxy, itemLabels)
-  local result, skipped = componentDiscover.transposerItemStoragesByLabels(proxy, itemLabels, {sides.up})
+  local result, skipped = componentDiscover.transposerItemStoragesByLabels(proxy, itemLabels, {sides.up, sides.bottom})
 
   if #skipped ~= 0 then
     error("[T4] Can't find items: "..table.concat(skipped, ", "))
@@ -189,52 +211,50 @@ function t4controller:findTransposerItem(proxy, itemLabels)
   end
 end
 
----Put Sodium Hydroxide in input bus
+---Put Sodium Hydroxide Dust into the input bus, at most 64 at a time (an ME interface slot refills
+---between doses). Returns false when there is none
 ---@param count integer
+---@return boolean|integer
 ---@private
 function t4controller:putSodiumHydroxide(count)
-  for i = 1, math.ceil(count / 64), 1 do
-    local sodiumHydroxideCount = 0
+  local moved = self.sodiumHydroxideTransposerProxy.transferItem(
+    self.transposerItems["Sodium Hydroxide Dust"].side,
+    sides.bottom,
+    math.min(64, count)
+  )
 
-    if count - 64 * (i - 1) > 64 then
-      sodiumHydroxideCount = 64
-    else
-      sodiumHydroxideCount = math.floor(count % 64)
-    end
+  moved = tonumber(moved) or 0
 
-    local result = self.sodiumHydroxideTransposerProxy.transferItem(
-      self.transposerItems["Sodium Hydroxide Dust"].side,
-      sides.bottom,
-      sodiumHydroxideCount
-    )
-
-    if result ~= sodiumHydroxideCount then
-      self:markNeedsAttention("Not enough Sodium Hydroxide for craft")
-      event.push("log_warning", "[T4] Not enough Sodium Hydroxide for craft")
-      break
-    end
+  if moved == 0 then
+    self:markNeedsAttention("Not enough Sodium Hydroxide for craft")
+    event.push("log_warning", "[T4] Not enough Sodium Hydroxide for craft")
+    return false
   end
+
+  return moved
 end
 
----Put Hydrochloric Acid in input hatch
+---Put Hydrochloric Acid into the input hatch (10 L per 0.01 pH). Returns false when there is none
 ---@param count integer
+---@return boolean|integer
 ---@private
 function t4controller:putHydrochloricAcid(count)
-  local hydrochloricAcidCount = count * 10
-
-  local _, result = self.hydrochloricAcidTransposerProxy.transferFluid(
+  local _, moved = self.hydrochloricAcidTransposerProxy.transferFluid(
     self.transposerLiquids["hydrochloricacid_gt5u"].side,
     sides.bottom,
-    hydrochloricAcidCount,
+    count * 10,
     self.transposerLiquids["hydrochloricacid_gt5u"].tank
   )
 
-  if result ~= hydrochloricAcidCount then
+  moved = tonumber(moved) or 0
+
+  if moved == 0 then
     self:markNeedsAttention("Not enough Hydrochloric Acid for craft")
     event.push("log_warning", "[T4] Not enough Hydrochloric Acid for craft")
+    return false
   end
 
-  self.gtSensorParser = gtSensorParser.parser:new(self.controllerProxy)
+  return moved
 end
 
 return classBuilder.createClass(t4controller, t4controller.constructor, "T4Controller", baseController)

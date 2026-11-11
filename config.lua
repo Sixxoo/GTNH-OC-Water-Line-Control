@@ -32,9 +32,9 @@ local config = {
     },
 
     t4 = { -- Controller for T4 pH Neutralized Water (Grade 4)
-      enable = false, -- Enable module for T4 water
-      hydrochloricAcidTransposerAddress = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", -- Address of transposer which provide Hydrochloric Acid
-      sodiumHydroxideTransposerAddress = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" -- Address of transposer which provide Sodium Hydroxide Dust
+      enable = true, -- Enable module for T4 water
+      hydrochloricAcidTransposerAddress = "4283709a-455f-4389-b70a-2ea0e50a0216", -- Address of transposer which provide Hydrochloric Acid (input hatch below it)
+      sodiumHydroxideTransposerAddress = "da2f5b19-d87b-4d61-b71a-097ab6dbda83" -- Address of transposer which provide Sodium Hydroxide Dust (input bus below it)
     },
 
     t5 = { -- Controller for T5 Extreme-Temperature Treated Water (Grade 5)

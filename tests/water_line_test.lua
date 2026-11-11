@@ -19,7 +19,11 @@ oc.gtMachine("multimachine.purificationunitozonation", {work = false})
 oc.gtMachine("multimachine.purificationunitflocculator", {work = false, sensor = {"a", "b", "c", "0"}})
 oc.transposer({[0] = {{capacity = 2000000}}, [1] = {{name = "polyaluminiumchloride", amount = 4000000}}}, nil,
   "5dcf2167-a9de-4f5a-8727-8287e7e4d98e")
-oc.meInterface({grade1purifiedwater = 33600000, grade2purifiedwater = 87200, grade3purifiedwater = 0}, nil,
+oc.gtMachine("multimachine.purificationunitphadjustment", {work = false})
+oc.transposer({[5] = {{name = "hydrochloricacid_gt5u", amount = 64000, capacity = 64000}}, [0] = {{capacity = 32000}}}, nil,
+  "4283709a-455f-4389-b70a-2ea0e50a0216")
+oc.transposer({}, {[5] = {{label = "Sodium Hydroxide Dust", size = 64, slot = 1}}}, "da2f5b19-d87b-4d61-b71a-097ab6dbda83")
+oc.meInterface({grade1purifiedwater = 33600000, grade2purifiedwater = 87200, grade3purifiedwater = 0, grade4purifiedwater = 1200000}, nil,
   "0604d547-0b75-4990-bd55-4ac86f1df51d")
 
 local cfg = require("addons.core").load("config")
